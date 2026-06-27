@@ -31,24 +31,73 @@
     header h1 { font-size: 16px; font-weight: 700; letter-spacing: .03em; }
     header .user { font-size: 12px; opacity: .75; }
 
-    main { max-width: 1200px; margin: 20px auto; padding: 0 16px; }
+    main { max-width: 1200px; margin: 0 auto; padding: 0 16px 40px; }
+
+    /* ===== タブ ===== */
+    .tab-bar {
+      display: flex;
+      border-bottom: 2px solid #e0e3ef;
+      margin-bottom: 0;
+      background: #fff;
+      position: sticky;
+      top: 56px;
+      z-index: 40;
+    }
+    .tab {
+      flex: 1;
+      padding: 14px 0;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #888;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: color .15s, border-color .15s;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .tab:hover { color: #555; }
+    .tab.active-sales    { color: #0d7c56; border-bottom-color: #0d7c56; }
+    .tab.active-purchase { color: #b45309; border-bottom-color: #b45309; }
+    .tab-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 20px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 0 6px;
+      background: #e5e7eb;
+      color: #555;
+    }
+    .tab.active-sales    .tab-count { background: #dcfce7; color: #166534; }
+    .tab.active-purchase .tab-count { background: #fef3c7; color: #92400e; }
+
+    /* ===== タブコンテンツ ===== */
+    .tab-content { padding-top: 20px; }
 
     /* ===== 件数バー ===== */
     .count-bar {
       display: flex;
       align-items: center;
-      gap: 16px;
-      margin-bottom: 14px;
+      gap: 14px;
+      margin-bottom: 12px;
       font-size: 13px;
       color: #555;
       flex-wrap: wrap;
     }
-    .count-bar .count-item { display: flex; align-items: center; gap: 5px; }
-    .count-bar .count-num  { font-weight: 700; font-size: 16px; }
+    .count-num   { font-weight: 700; font-size: 16px; }
     .count-total  { color: #1a3a6b; }
     .count-done   { color: #1e8c45; }
     .count-undone { color: #c0392b; }
     .count-sep    { color: #ddd; }
+    .count-deleted { color: #aaa; font-size: 12px; cursor: pointer; text-decoration: underline; }
 
     /* ===== ツールバー ===== */
     .toolbar {
@@ -71,7 +120,6 @@
     .toolbar input[type="text"] { flex: 1 1 160px; }
     .toolbar select { flex: 0 0 auto; }
     .toolbar input:focus, .toolbar select:focus { border-color: #1a3a6b; }
-    .toolbar-actions { display: flex; gap: 8px; margin-left: auto; flex-shrink: 0; }
 
     /* ===== テーブル（PC） ===== */
     .table-wrap {
@@ -102,6 +150,8 @@
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: #f8f9fd; }
     tbody td { padding: 11px 12px; vertical-align: middle; }
+    tbody tr.deleted-row { opacity: .45; background: #f9f9f9; }
+    tbody tr.deleted-row td:first-child { text-decoration: line-through; color: #aaa; }
     .empty-row td { text-align: center; padding: 40px; color: #aaa; }
 
     /* ===== カード表示（スマホ） ===== */
@@ -116,13 +166,12 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.08);
       overflow: hidden;
     }
-    /* ステータス別左ボーダー */
     .file-card.status-done       { border-left: 4px solid #10b981; }
     .file-card.status-undone     { border-left: 4px solid #ef4444; }
     .file-card.status-processing { border-left: 4px solid #f59e0b; }
+    .file-card.deleted-card      { opacity: .45; border-left: 4px solid #d1d5db; }
 
     .file-card-inner { padding: 14px 16px; }
-
     .file-card-header {
       display: flex;
       justify-content: space-between;
@@ -131,45 +180,34 @@
       margin-bottom: 6px;
     }
     .file-card-name { font-weight: 600; font-size: 13px; word-break: break-all; flex: 1; }
+    .deleted-card .file-card-name { text-decoration: line-through; color: #aaa; }
     .file-card-status { flex-shrink: 0; }
-
     .file-card-badges { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
-
     .file-card-meta {
-      font-size: 12px;
-      color: #666;
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 3px 10px;
-      margin-bottom: 10px;
+      font-size: 12px; color: #666;
+      display: grid; grid-template-columns: auto 1fr;
+      gap: 3px 10px; margin-bottom: 10px;
     }
     .file-card-meta .meta-label { color: #aaa; white-space: nowrap; }
-
     .file-card-footer {
       display: flex;
       justify-content: flex-end;
-      gap: 8px;
+      gap: 6px;
       border-top: 1px solid #f0f2f8;
       padding-top: 10px;
     }
 
     /* ===== バッジ ===== */
     .cat {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 700;
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: 700;
     }
     .cat-sales    { background: #dcfce7; color: #166534; }
     .cat-purchase { background: #fef3c7; color: #92400e; }
 
     .badge {
-      display: inline-block;
-      padding: 2px 9px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
+      display: inline-block; padding: 2px 9px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
     }
     .badge-estimate-s { background: #d1fae5; color: #065f46; }
     .badge-order-s    { background: #a7f3d0; color: #064e3b; }
@@ -183,18 +221,14 @@
     .badge-other-p    { background: #e5e7eb; color: #374151; }
 
     .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
     }
     .status-done       { background: #d1fae5; color: #065f46; }
     .status-undone     { background: #fee2e2; color: #991b1b; }
     .status-processing { background: #fef9c3; color: #854d0e; }
+    .status-deleted    { background: #f3f4f6; color: #9ca3af; }
     .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
     .dot-done       { background: #10b981; }
     .dot-undone     { background: #ef4444; }
@@ -203,16 +237,9 @@
 
     /* ===== ボタン ===== */
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-      padding: 8px 14px;
-      border: none;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 5px; padding: 8px 14px; border: none; border-radius: 6px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
       transition: opacity .15s, transform .1s;
     }
     .btn:hover:not(:disabled) { opacity: .85; }
@@ -223,51 +250,42 @@
     .btn-danger  { background: #fee2e2; color: #991b1b; }
     .btn-ghost   { background: #f3f4f6; color: #374151; }
     .btn-outline { background: #fff; color: #1a3a6b; border: 1.5px solid #1a3a6b; }
+    .btn-warn    { background: #fff7ed; color: #c2410c; border: 1.5px solid #fdba74; }
+    .btn-restore { background: #f0fdf4; color: #166534; border: 1.5px solid #86efac; }
     .btn-sm { padding: 5px 10px; font-size: 12px; }
-    .btn-icon { padding: 7px; font-size: 16px; }
 
     .saved-info { font-size: 11px; color: #555; line-height: 1.7; }
     .saved-date { font-size: 10px; color: #999; }
 
     /* ===== モーダル共通 ===== */
     .overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.45);
-      z-index: 200;
-      align-items: flex-end;
-      justify-content: center;
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 200;
+      align-items: flex-end; justify-content: center;
     }
     .overlay.open { display: flex; }
     @media (min-width: 600px) { .overlay { align-items: center; } }
 
     .modal {
-      background: #fff;
-      border-radius: 16px 16px 0 0;
-      padding: 20px 20px 36px;
-      width: 100%;
-      max-width: 540px;
-      max-height: 92vh;
-      overflow-y: auto;
-      box-shadow: 0 -4px 24px rgba(0,0,0,.15);
-      position: relative;
+      background: #fff; border-radius: 16px 16px 0 0;
+      padding: 20px 20px 36px; width: 100%; max-width: 540px;
+      max-height: 92vh; overflow-y: auto;
+      box-shadow: 0 -4px 24px rgba(0,0,0,.15); position: relative;
     }
     @media (min-width: 600px) {
       .modal { border-radius: 14px; padding: 28px; max-height: 85vh; }
     }
     .modal-handle {
-      width: 36px; height: 4px;
-      background: #ddd; border-radius: 2px;
-      margin: 0 auto 16px;
+      width: 36px; height: 4px; background: #ddd;
+      border-radius: 2px; margin: 0 auto 16px;
     }
     @media (min-width: 600px) { .modal-handle { display: none; } }
 
     .modal h2 { font-size: 16px; margin-bottom: 16px; color: #1a3a6b; }
     .close-btn {
       position: absolute; top: 16px; right: 16px;
-      background: none; border: none;
-      font-size: 20px; cursor: pointer; color: #999; line-height: 1;
+      background: none; border: none; font-size: 20px;
+      cursor: pointer; color: #999; line-height: 1;
     }
     .close-btn:hover { color: #333; }
 
@@ -277,21 +295,20 @@
       display: block; font-size: 12px; font-weight: 600;
       color: #555; margin-bottom: 5px;
     }
-    .form-group label .req { color: #e53e3e; margin-left: 3px; }
     .form-control {
-      width: 100%; padding: 10px 12px;
-      border: 1px solid #d0d5de; border-radius: 7px;
-      font-size: 14px; outline: none; background: #fff; font-family: inherit;
+      width: 100%; padding: 10px 12px; border: 1px solid #d0d5de;
+      border-radius: 7px; font-size: 14px; outline: none;
+      background: #fff; font-family: inherit;
     }
     .form-control:focus { border-color: #1a3a6b; box-shadow: 0 0 0 3px rgba(26,58,107,.1); }
+    .form-control[readonly] { background: #f9fafb; color: #6b7280; cursor: default; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 400px) { .form-row { grid-template-columns: 1fr; } }
 
-    /* ===== PDF モーダル ===== */
+    /* ===== PDFモーダル ===== */
     .doc-meta {
-      font-size: 12px; color: #666;
-      margin-bottom: 14px; padding-bottom: 12px;
-      border-bottom: 1px solid #eee;
+      font-size: 12px; color: #666; margin-bottom: 14px;
+      padding-bottom: 12px; border-bottom: 1px solid #eee;
       display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
     }
     .drop-zone {
@@ -306,9 +323,8 @@
 
     .process-log {
       display: none; background: #1e1e2e; border-radius: 8px;
-      padding: 14px; margin-bottom: 14px;
-      font-family: monospace; font-size: 12px; color: #cdd6f4;
-      max-height: 140px; overflow-y: auto;
+      padding: 14px; margin-bottom: 14px; font-family: monospace;
+      font-size: 12px; color: #cdd6f4; max-height: 140px; overflow-y: auto;
     }
     .process-log.show { display: block; }
     .log-line { line-height: 1.8; }
@@ -331,21 +347,16 @@
       border-radius: 8px; padding: 12px 14px;
       display: flex; flex-direction: column; gap: 6px;
     }
-    .folder-item-header {
-      display: flex; justify-content: space-between; align-items: center; gap: 8px;
-    }
+    .folder-item-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
     .folder-label { font-weight: 700; font-size: 14px; }
     .folder-path  { font-size: 11px; color: #888; font-family: monospace; word-break: break-all; }
     .folder-meta  { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .folder-last-scan { font-size: 11px; color: #aaa; }
-    .folder-actions { display: flex; gap: 6px; }
-
     .folder-add-form {
       border: 1.5px dashed #c5cae9; border-radius: 8px;
       padding: 14px; background: #fafbff;
     }
     .folder-add-form h3 { font-size: 13px; color: #555; margin-bottom: 12px; }
-
     .scan-progress {
       display: none; background: #1e1e2e; border-radius: 8px;
       padding: 12px 14px; font-family: monospace; font-size: 12px;
@@ -353,7 +364,7 @@
     }
     .scan-progress.show { display: block; }
 
-    /* ===== 削除確認モーダル ===== */
+    /* ===== 削除確認 ===== */
     .confirm-body { font-size: 14px; color: #555; margin-bottom: 20px; line-height: 1.7; }
     .confirm-name { font-weight: 700; color: #333; word-break: break-all; }
 
@@ -361,20 +372,13 @@
     #toast {
       position: fixed; bottom: 80px; left: 50%;
       transform: translateX(-50%) translateY(20px);
-      background: #333; color: #fff;
-      padding: 10px 20px; border-radius: 8px;
-      font-size: 13px; font-weight: 600;
+      background: #333; color: #fff; padding: 10px 20px;
+      border-radius: 8px; font-size: 13px; font-weight: 600;
       opacity: 0; transition: opacity .25s, transform .25s;
       pointer-events: none; z-index: 999; white-space: nowrap;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* ===== フォルダースキャン件数バッジ ===== */
-    .scan-count {
-      display: inline-block; background: #1a3a6b; color: #fff;
-      border-radius: 20px; font-size: 11px; font-weight: 700;
-      padding: 1px 8px; margin-left: 6px;
-    }
     .source-tag {
       display: inline-block; background: #ede9fe; color: #5b21b6;
       border-radius: 4px; font-size: 10px; font-weight: 600;
@@ -390,118 +394,113 @@
 </header>
 
 <main>
-  <!-- 件数バー -->
-  <div class="count-bar">
-    <div class="count-item">
-      <span class="count-num count-total" id="totalCount">0</span>
-      <span>件</span>
+  <!-- タブ -->
+  <div class="tab-bar">
+    <div class="tab active-sales" id="tab-sales" onclick="switchTab('販売')">
+      販売 <span class="tab-count" id="tab-count-sales">0</span>
     </div>
-    <span class="count-sep">|</span>
-    <div class="count-item">
-      <span class="count-num count-done" id="doneCount">0</span>
-      <span>件 保存済み</span>
-    </div>
-    <span class="count-sep">|</span>
-    <div class="count-item">
-      <span class="count-num count-undone" id="undoneCount">0</span>
-      <span>件 未保存</span>
+    <div class="tab" id="tab-purchase" onclick="switchTab('仕入れ')">
+      仕入れ <span class="tab-count" id="tab-count-purchase">0</span>
     </div>
   </div>
 
-  <!-- ツールバー -->
-  <div class="toolbar">
-    <input type="text" id="searchInput" placeholder="🔍 ファイル名・取引先で検索" oninput="applyFilter()" />
-    <select id="categoryFilter" onchange="applyFilter()">
-      <option value="">すべての区分</option>
-      <option value="販売">販売</option>
-      <option value="仕入れ">仕入れ</option>
-    </select>
-    <select id="typeFilter" onchange="applyFilter()">
-      <option value="">すべての種別</option>
-      <option value="見積書">見積書</option>
-      <option value="注文書">注文書</option>
-      <option value="発注書">発注書</option>
-      <option value="納品書">納品書</option>
-      <option value="請求書">請求書</option>
-      <option value="その他">その他</option>
-    </select>
-    <select id="statusFilter" onchange="applyFilter()">
-      <option value="">すべてのステータス</option>
-      <option value="未保存">未保存</option>
-      <option value="保存済み">保存済み</option>
-    </select>
-    <div class="toolbar-actions">
-      <button class="btn btn-outline btn-sm" onclick="openFolderModal()" title="フォルダー設定">📁 フォルダー設定</button>
-      <button class="btn btn-primary btn-sm" onclick="openRegisterModal()">＋ 新規登録</button>
+  <!-- タブコンテンツ -->
+  <div class="tab-content">
+    <!-- 件数バー -->
+    <div class="count-bar">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span class="count-num count-total" id="totalCount">0</span><span>件</span>
+      </div>
+      <span class="count-sep">|</span>
+      <div style="display:flex;align-items:center;gap:5px">
+        <span class="count-num count-done" id="doneCount">0</span><span>件 保存済み</span>
+      </div>
+      <span class="count-sep">|</span>
+      <div style="display:flex;align-items:center;gap:5px">
+        <span class="count-num count-undone" id="undoneCount">0</span><span>件 未保存</span>
+      </div>
+      <span id="deletedCountWrap" style="margin-left:auto;display:none">
+        <span class="count-deleted" onclick="toggleShowDeleted()">
+          削除済み <span id="deletedCount">0</span>件
+          <span id="deletedToggleLabel">（表示する）</span>
+        </span>
+      </span>
     </div>
-  </div>
 
-  <!-- テーブル（PC） -->
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th class="sortable" data-col="name"          onclick="sortBy('name')">ファイル名 <span class="sort-icon"></span></th>
-          <th>区分</th>
-          <th class="sortable" data-col="type"          onclick="sortBy('type')">種別 <span class="sort-icon"></span></th>
-          <th class="sortable" data-col="counterparty"  onclick="sortBy('counterparty')">取引先 <span class="sort-icon"></span></th>
-          <th class="sortable" data-col="date"          onclick="sortBy('date')">日付 <span class="sort-icon"></span></th>
-          <th class="sortable" data-col="amount"        onclick="sortBy('amount')">金額（税込） <span class="sort-icon"></span></th>
-          <th>ステータス</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody id="fileTableBody"></tbody>
-    </table>
-  </div>
+    <!-- ツールバー -->
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="🔍 ファイル名・取引先で検索" oninput="applyFilter()" />
+      <select id="typeFilter" onchange="applyFilter()">
+        <option value="">すべての種別</option>
+      </select>
+      <select id="statusFilter" onchange="applyFilter()">
+        <option value="">すべてのステータス</option>
+        <option value="未保存">未保存</option>
+        <option value="保存済み">保存済み</option>
+      </select>
+      <button class="btn btn-outline btn-sm" onclick="openFolderModal()">📁 フォルダー設定</button>
+    </div>
 
-  <!-- カード表示（スマホ） -->
-  <div class="card-list" id="cardList"></div>
+    <!-- テーブル（PC） -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable" data-col="name"         onclick="sortBy('name')">ファイル名 <span class="sort-icon"></span></th>
+            <th class="sortable" data-col="type"         onclick="sortBy('type')">種別 <span class="sort-icon"></span></th>
+            <th class="sortable" data-col="counterparty" onclick="sortBy('counterparty')">取引先 <span class="sort-icon"></span></th>
+            <th class="sortable" data-col="date"         onclick="sortBy('date')">日付 <span class="sort-icon"></span></th>
+            <th class="sortable" data-col="amount"       onclick="sortBy('amount')">金額（税込） <span class="sort-icon"></span></th>
+            <th>ステータス</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="fileTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- カード表示（スマホ） -->
+    <div class="card-list" id="cardList"></div>
+  </div>
 </main>
 
-<!-- ===== 新規登録モーダル ===== -->
-<div class="overlay" id="registerOverlay">
+<!-- ===== 編集モーダル ===== -->
+<div class="overlay" id="editOverlay">
   <div class="modal">
     <div class="modal-handle"></div>
-    <button class="close-btn" onclick="closeRegisterModal()">✕</button>
-    <h2>📝 新規ファイル登録</h2>
-    <div class="form-row">
-      <div class="form-group">
-        <label>区分 <span class="req">*</span></label>
-        <select class="form-control" id="reg-category" onchange="updateTypeOptions()">
-          <option value="">選択してください</option>
-          <option value="販売">販売</option>
-          <option value="仕入れ">仕入れ</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>種別 <span class="req">*</span></label>
-        <select class="form-control" id="reg-type">
-          <option value="">先に区分を選択</option>
-        </select>
-      </div>
-    </div>
+    <button class="close-btn" onclick="closeEditModal()">✕</button>
+    <h2>✏️ ファイル情報を編集</h2>
     <div class="form-group">
-      <label>ファイル名 <span class="req">*</span></label>
-      <input type="text" class="form-control" id="reg-name" placeholder="例: INV-2024-001.pdf" />
-    </div>
-    <div class="form-group">
-      <label>取引先 <span class="req">*</span></label>
-      <input type="text" class="form-control" id="reg-counterparty" placeholder="例: 株式会社サンプル" />
+      <label>ファイル名</label>
+      <input type="text" class="form-control" id="edit-name" readonly />
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>書類日付 <span class="req">*</span></label>
-        <input type="date" class="form-control" id="reg-date" />
+        <label>区分</label>
+        <input type="text" class="form-control" id="edit-category" readonly />
+      </div>
+      <div class="form-group">
+        <label>種別</label>
+        <select class="form-control" id="edit-type"></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>取引先</label>
+      <input type="text" class="form-control" id="edit-counterparty" placeholder="例: 株式会社サンプル" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>書類日付</label>
+        <input type="date" class="form-control" id="edit-date" />
       </div>
       <div class="form-group">
         <label>金額（税込）</label>
-        <input type="number" class="form-control" id="reg-amount" placeholder="例: 110000" min="0" />
+        <input type="number" class="form-control" id="edit-amount" placeholder="例: 110000" min="0" />
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeRegisterModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="submitRegister()">登録する</button>
+      <button class="btn btn-ghost" onclick="closeEditModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitEdit()">保存する</button>
     </div>
   </div>
 </div>
@@ -513,24 +512,18 @@
     <button class="close-btn" onclick="closeFolderModal()">✕</button>
     <h2>📁 フォルダー設定</h2>
     <p style="font-size:12px;color:#888;margin-bottom:14px">
-      取り込み対象のフォルダーを登録します。スキャンするとフォルダー内のファイルを一覧に追加します。
+      取り込み対象のフォルダーを登録します。スキャンするとファイルを一覧に追加します。
     </p>
-
-    <!-- 登録済みフォルダー一覧 -->
     <div class="folder-list" id="folderList"></div>
-
-    <!-- スキャンログ -->
     <div class="scan-progress" id="scanProgress"></div>
-
-    <!-- フォルダー追加フォーム -->
     <div class="folder-add-form">
       <h3>＋ フォルダーを追加</h3>
       <div class="form-group">
-        <label>フォルダー名（表示用）<span class="req">*</span></label>
+        <label>フォルダー名（表示用）</label>
         <input type="text" class="form-control" id="folder-label" placeholder="例: 販売請求書フォルダー" />
       </div>
       <div class="form-group">
-        <label>フォルダーパス <span class="req">*</span></label>
+        <label>フォルダーパス</label>
         <input type="text" class="form-control" id="folder-path" placeholder="例: /共有サーバー/販売/請求書" />
       </div>
       <div class="form-row">
@@ -551,7 +544,6 @@
       </div>
       <button class="btn btn-primary" style="width:100%" onclick="addFolder()">フォルダーを追加</button>
     </div>
-
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeFolderModal()">閉じる</button>
       <button class="btn btn-success" onclick="scanAllFolders()">🔄 全フォルダーをスキャン</button>
@@ -590,14 +582,14 @@
 <div class="overlay" id="deleteOverlay">
   <div class="modal">
     <div class="modal-handle"></div>
-    <h2>🗑️ ファイルの削除</h2>
+    <h2>🗑️ 一覧から削除</h2>
     <div class="confirm-body">
-      以下のファイルを一覧から削除してよいですか？<br>
+      以下のファイルを一覧から非表示にします。<br>ファイル本体は削除されません。<br><br>
       <span class="confirm-name" id="deleteFileName"></span>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeDeleteModal()">キャンセル</button>
-      <button class="btn btn-danger" onclick="confirmDelete()">削除する</button>
+      <button class="btn btn-warn" onclick="confirmDelete()">非表示にする</button>
     </div>
   </div>
 </div>
@@ -622,31 +614,26 @@
     "仕入れ_請求書": "badge-invoice-p",
     "仕入れ_その他": "badge-other-p",
   };
-
-  // モックスキャン用ファイル名パターン
   const MOCK_FILES = {
-    "見積書": ["EST", "QUOTE", "見積"],
-    "注文書": ["ORD", "ORDER", "注文"],
-    "発注書": ["PO", "PORDER", "発注"],
-    "納品書": ["DN", "DELIV", "納品"],
-    "請求書": ["INV", "INVOICE", "請求"],
-    "その他": ["DOC", "FILE", "書類"],
+    "見積書": ["EST","QUOTE"], "注文書": ["ORD","ORDER"],
+    "発注書": ["PO","PORDER"], "納品書": ["DN","DELIV"],
+    "請求書": ["INV","INVOICE"], "その他": ["DOC","FILE"],
   };
-  const MOCK_EXT = [".pdf", ".xlsx", ".docx", ".csv"];
+  const MOCK_EXT = [".pdf",".xlsx",".docx",".csv"];
 
   /* ===== データ ===== */
   let nextId = 11;
   const files = [
-    { id:1,  category:"販売",  type:"見積書", name:"EST-S-2024-0601.xlsx", counterparty:"株式会社アルファ",   date:"2024-06-01", amount:385000, status:"保存済み", savedAt:"2024-06-02", pdfName:"EST-S-2024-0601.pdf", source:null },
-    { id:2,  category:"販売",  type:"注文書", name:"ORD-2024-0605.pdf",    counterparty:"ベータ商事株式会社", date:"2024-06-05", amount:220000, status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
-    { id:3,  category:"販売",  type:"納品書", name:"DN-S-2024-0610.xlsx",  counterparty:"株式会社ガンマ",     date:"2024-06-10", amount:220000, status:"保存済み", savedAt:"2024-06-11", pdfName:"DN-S-2024-0610.pdf",  source:null },
-    { id:4,  category:"販売",  type:"請求書", name:"INV-S-2024-0615.pdf",  counterparty:"デルタ工業株式会社", date:"2024-06-15", amount:242000, status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
-    { id:5,  category:"販売",  type:"その他", name:"CONTRACT-2024-0618.docx", counterparty:"イプシロン株式会社", date:"2024-06-18", amount:null,  status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
-    { id:6,  category:"仕入れ", type:"見積書", name:"EST-P-2024-0602.pdf",  counterparty:"ゼータ物産株式会社", date:"2024-06-02", amount:148500, status:"保存済み", savedAt:"2024-06-03", pdfName:"EST-P-2024-0602.pdf", source:null },
-    { id:7,  category:"仕入れ", type:"発注書", name:"PO-2024-0607.xlsx",    counterparty:"エータ商事",         date:"2024-06-07", amount:162800, status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
-    { id:8,  category:"仕入れ", type:"納品書", name:"DN-P-2024-0612.csv",   counterparty:"シータ工業株式会社", date:"2024-06-12", amount:162800, status:"保存済み", savedAt:"2024-06-13", pdfName:"DN-P-2024-0612.pdf",  source:null },
-    { id:9,  category:"仕入れ", type:"請求書", name:"INV-P-2024-0620.pdf",  counterparty:"イオタ株式会社",     date:"2024-06-20", amount:178200, status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
-    { id:10, category:"仕入れ", type:"その他", name:"AGREEMENT-2024-0622.docx", counterparty:"カッパ商店",    date:"2024-06-22", amount:null,   status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
+    { id:1,  category:"販売",  type:"見積書", name:"EST-S-2024-0601.xlsx", counterparty:"株式会社アルファ",   date:"2024-06-01", amount:385000, status:"保存済み", savedAt:"2024-06-02", pdfName:"EST-S-2024-0601.pdf", source:null, deleted:false },
+    { id:2,  category:"販売",  type:"注文書", name:"ORD-2024-0605.pdf",    counterparty:"ベータ商事株式会社", date:"2024-06-05", amount:220000, status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
+    { id:3,  category:"販売",  type:"納品書", name:"DN-S-2024-0610.xlsx",  counterparty:"株式会社ガンマ",     date:"2024-06-10", amount:220000, status:"保存済み", savedAt:"2024-06-11", pdfName:"DN-S-2024-0610.pdf", source:null, deleted:false },
+    { id:4,  category:"販売",  type:"請求書", name:"INV-S-2024-0615.pdf",  counterparty:"デルタ工業株式会社", date:"2024-06-15", amount:242000, status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
+    { id:5,  category:"販売",  type:"その他", name:"CONTRACT-2024-0618.docx", counterparty:"イプシロン株式会社", date:"2024-06-18", amount:null, status:"未保存", savedAt:null, pdfName:null, source:null, deleted:false },
+    { id:6,  category:"仕入れ", type:"見積書", name:"EST-P-2024-0602.pdf",  counterparty:"ゼータ物産株式会社", date:"2024-06-02", amount:148500, status:"保存済み", savedAt:"2024-06-03", pdfName:"EST-P-2024-0602.pdf", source:null, deleted:false },
+    { id:7,  category:"仕入れ", type:"発注書", name:"PO-2024-0607.xlsx",    counterparty:"エータ商事",         date:"2024-06-07", amount:162800, status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
+    { id:8,  category:"仕入れ", type:"納品書", name:"DN-P-2024-0612.csv",   counterparty:"シータ工業株式会社", date:"2024-06-12", amount:162800, status:"保存済み", savedAt:"2024-06-13", pdfName:"DN-P-2024-0612.pdf", source:null, deleted:false },
+    { id:9,  category:"仕入れ", type:"請求書", name:"INV-P-2024-0620.pdf",  counterparty:"イオタ株式会社",     date:"2024-06-20", amount:178200, status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
+    { id:10, category:"仕入れ", type:"その他", name:"AGREEMENT-2024-0622.docx", counterparty:"カッパ商店",    date:"2024-06-22", amount:null,   status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
   ];
 
   let folders = [
@@ -655,8 +642,31 @@
   ];
   let nextFolderId = 3;
 
-  let sortCol = "date";
-  let sortDir = "desc";
+  let activeTab     = "販売";
+  let sortCol       = "date";
+  let sortDir       = "desc";
+  let showDeleted   = false;
+  let editTargetId  = null;
+  let deleteTargetId = null;
+  let currentFileId = null;
+  let selectedFile  = null;
+
+  /* ===== タブ切り替え ===== */
+  function switchTab(cat) {
+    activeTab = cat;
+    document.getElementById("tab-sales").className    = "tab" + (cat === "販売"  ? " active-sales"    : "");
+    document.getElementById("tab-purchase").className = "tab" + (cat === "仕入れ" ? " active-purchase"  : "");
+    updateTypeFilter();
+    applyFilter();
+  }
+
+  function updateTypeFilter() {
+    const sel = document.getElementById("typeFilter");
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">すべての種別</option>` +
+      TYPES[activeTab].map(t => `<option value="${t}">${t}</option>`).join("");
+    if (TYPES[activeTab].includes(cur)) sel.value = cur;
+  }
 
   /* ===== バッジ ===== */
   function catBadge(cat) {
@@ -666,10 +676,12 @@
     const cls = TYPE_BADGE[`${cat}_${type}`] || "badge-other-s";
     return `<span class="badge ${cls}">${type}</span>`;
   }
-  function statusBadge(status) {
-    if (status === "保存済み")
+  function statusBadge(f) {
+    if (f.deleted)
+      return `<span class="status status-deleted"><span class="dot" style="background:#d1d5db"></span>非表示</span>`;
+    if (f.status === "保存済み")
       return `<span class="status status-done"><span class="dot dot-done"></span>保存済み</span>`;
-    if (status === "処理中")
+    if (f.status === "処理中")
       return `<span class="status status-processing"><span class="dot dot-processing"></span>処理中...</span>`;
     return `<span class="status status-undone"><span class="dot dot-undone"></span>未保存</span>`;
   }
@@ -680,69 +692,96 @@
     sortCol = col;
     applyFilter();
     document.querySelectorAll("thead th[data-col]").forEach(th => {
-      th.classList.remove("sort-asc", "sort-desc");
+      th.classList.remove("sort-asc","sort-desc");
       if (th.dataset.col === sortCol) th.classList.add(sortDir === "asc" ? "sort-asc" : "sort-desc");
     });
   }
   function sortedData(data) {
-    return [...data].sort((a, b) => {
+    return [...data].sort((a,b) => {
       let av = a[sortCol] ?? "", bv = b[sortCol] ?? "";
       if (typeof av === "number" && typeof bv === "number")
         return sortDir === "asc" ? av - bv : bv - av;
       return sortDir === "asc"
-        ? String(av).localeCompare(String(bv), "ja")
-        : String(bv).localeCompare(String(av), "ja");
+        ? String(av).localeCompare(String(bv),"ja")
+        : String(bv).localeCompare(String(av),"ja");
     });
   }
 
   /* ===== フィルター＆描画 ===== */
   function applyFilter() {
-    const kw       = document.getElementById("searchInput").value.toLowerCase();
-    const category = document.getElementById("categoryFilter").value;
-    const type     = document.getElementById("typeFilter").value;
-    const status   = document.getElementById("statusFilter").value;
-    const filtered = sortedData(files.filter(f =>
-      (!kw       || f.name.toLowerCase().includes(kw) || f.counterparty.toLowerCase().includes(kw)) &&
-      (!category || f.category === category) &&
-      (!type     || f.type === type) &&
-      (!status   || f.status === status)
-    ));
+    const kw     = document.getElementById("searchInput").value.toLowerCase();
+    const type   = document.getElementById("typeFilter").value;
+    const status = document.getElementById("statusFilter").value;
+
+    const tabFiles = files.filter(f => f.category === activeTab);
+    const delCount = tabFiles.filter(f => f.deleted).length;
+
+    // 件数バー：削除済みを除いた全件
+    const activeFiles = tabFiles.filter(f => !f.deleted);
+    document.getElementById("totalCount").textContent  = activeFiles.length;
+    document.getElementById("doneCount").textContent   = activeFiles.filter(f => f.status === "保存済み").length;
+    document.getElementById("undoneCount").textContent = activeFiles.filter(f => f.status !== "保存済み").length;
+
+    // 削除済みリンク
+    const wrap = document.getElementById("deletedCountWrap");
+    wrap.style.display = delCount > 0 ? "" : "none";
+    document.getElementById("deletedCount").textContent = delCount;
+    document.getElementById("deletedToggleLabel").textContent = showDeleted ? "（非表示にする）" : "（表示する）";
+
+    // タブカウント（削除済み除く）
+    document.getElementById("tab-count-sales").textContent    = files.filter(f => f.category==="販売"  && !f.deleted).length;
+    document.getElementById("tab-count-purchase").textContent = files.filter(f => f.category==="仕入れ" && !f.deleted).length;
+
+    // フィルター適用
+    let filtered = tabFiles.filter(f => {
+      if (f.deleted && !showDeleted) return false;
+      if (kw   && !f.name.toLowerCase().includes(kw) && !f.counterparty.toLowerCase().includes(kw)) return false;
+      if (type   && f.type !== type)     return false;
+      if (status && f.status !== status && !(status === "未保存" && f.deleted)) return false;
+      return true;
+    });
+    filtered = sortedData(filtered);
+
     renderTable(filtered);
     renderCards(filtered);
-    updateSummary();
   }
 
   function renderTable(data) {
     const tbody = document.getElementById("fileTableBody");
     if (!data.length) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="8">該当するファイルがありません</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="7">該当するファイルがありません</td></tr>`;
       return;
     }
     tbody.innerHTML = data.map(f => `
-      <tr id="row-${f.id}">
+      <tr id="row-${f.id}" class="${f.deleted ? "deleted-row" : ""}">
         <td style="font-weight:600;word-break:break-all;max-width:180px">
           ${f.name}
           ${f.source ? `<span class="source-tag">📁 ${f.source}</span>` : ""}
         </td>
-        <td>${catBadge(f.category)}</td>
         <td>${typeBadge(f.category, f.type)}</td>
         <td>${f.counterparty}</td>
         <td>${f.date}</td>
         <td style="text-align:right">${f.amount != null ? "¥" + f.amount.toLocaleString() : "—"}</td>
-        <td>${statusBadge(f.status)}</td>
+        <td>${statusBadge(f)}</td>
         <td>${tableAction(f)}</td>
       </tr>
     `).join("");
   }
 
   function tableAction(f) {
+    if (f.deleted)
+      return `<button class="btn btn-restore btn-sm" onclick="restoreFile(${f.id})">↩ 復元</button>`;
     if (f.status === "保存済み")
-      return `<div class="saved-info"><div>📎 ${f.pdfName}</div><div class="saved-date">${f.savedAt}</div></div>`;
+      return `<div style="display:flex;gap:6px;align-items:center">
+        <div class="saved-info"><div>📎 ${f.pdfName}</div><div class="saved-date">${f.savedAt}</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="openEditModal(${f.id})">✏️</button>
+      </div>`;
     if (f.status === "処理中")
       return `<button class="btn btn-sm" disabled>処理中...</button>`;
     return `<div style="display:flex;gap:6px">
       <button class="btn btn-primary btn-sm" onclick="openPdfModal(${f.id})">📎 PDF添付</button>
-      <button class="btn btn-danger btn-sm"  onclick="openDeleteModal(${f.id})">🗑️</button>
+      <button class="btn btn-ghost   btn-sm" onclick="openEditModal(${f.id})">✏️</button>
+      <button class="btn btn-danger  btn-sm" onclick="openDeleteModal(${f.id})">🗑️</button>
     </div>`;
   }
 
@@ -752,78 +791,108 @@
       list.innerHTML = `<div style="text-align:center;padding:40px;color:#aaa">該当するファイルがありません</div>`;
       return;
     }
-    const statusClass = s => s === "保存済み" ? "status-done" : s === "処理中" ? "status-processing" : "status-undone";
-    list.innerHTML = data.map(f => `
-      <div class="file-card ${statusClass(f.status)}" id="card-${f.id}">
-        <div class="file-card-inner">
-          <div class="file-card-header">
-            <div class="file-card-name">
-              ${f.name}
-              ${f.source ? `<span class="source-tag">📁 ${f.source}</span>` : ""}
+    list.innerHTML = data.map(f => {
+      const sc = f.deleted ? "deleted-card" :
+                 f.status === "保存済み" ? "status-done" :
+                 f.status === "処理中"   ? "status-processing" : "status-undone";
+      return `
+        <div class="file-card ${sc}" id="card-${f.id}">
+          <div class="file-card-inner">
+            <div class="file-card-header">
+              <div class="file-card-name">
+                ${f.name}
+                ${f.source ? `<span class="source-tag">📁 ${f.source}</span>` : ""}
+              </div>
+              <div class="file-card-status">${statusBadge(f)}</div>
             </div>
-            <div class="file-card-status">${statusBadge(f.status)}</div>
+            <div class="file-card-badges">${typeBadge(f.category, f.type)}</div>
+            <div class="file-card-meta">
+              <span class="meta-label">取引先</span><span>${f.counterparty}</span>
+              <span class="meta-label">日付</span><span>${f.date}</span>
+              <span class="meta-label">金額</span><span>${f.amount != null ? "¥" + f.amount.toLocaleString() : "—"}</span>
+              ${f.status === "保存済み" && !f.deleted ? `<span class="meta-label">PDF</span><span style="font-size:11px">📎 ${f.pdfName}（${f.savedAt}）</span>` : ""}
+            </div>
+            <div class="file-card-footer">${cardAction(f)}</div>
           </div>
-          <div class="file-card-badges">
-            ${catBadge(f.category)}
-            ${typeBadge(f.category, f.type)}
-          </div>
-          <div class="file-card-meta">
-            <span class="meta-label">取引先</span><span>${f.counterparty}</span>
-            <span class="meta-label">日付</span><span>${f.date}</span>
-            <span class="meta-label">金額</span><span>${f.amount != null ? "¥" + f.amount.toLocaleString() : "—"}</span>
-            ${f.status === "保存済み" ? `<span class="meta-label">PDF</span><span style="font-size:11px">📎 ${f.pdfName}（${f.savedAt}）</span>` : ""}
-          </div>
-          <div class="file-card-footer">${cardAction(f)}</div>
-        </div>
-      </div>
-    `).join("");
+        </div>`;
+    }).join("");
   }
 
   function cardAction(f) {
-    if (f.status === "保存済み") return `<span style="font-size:11px;color:#aaa">保存完了</span>`;
-    if (f.status === "処理中")   return `<button class="btn btn-sm" disabled>処理中...</button>`;
-    return `<div style="display:flex;gap:6px;margin-left:auto">
+    if (f.deleted)
+      return `<button class="btn btn-restore btn-sm" onclick="restoreFile(${f.id})">↩ 復元</button>`;
+    if (f.status === "保存済み")
+      return `<button class="btn btn-ghost btn-sm" onclick="openEditModal(${f.id})">✏️ 編集</button>`;
+    if (f.status === "処理中")
+      return `<button class="btn btn-sm" disabled>処理中...</button>`;
+    return `<div style="display:flex;gap:6px">
       <button class="btn btn-primary btn-sm" onclick="openPdfModal(${f.id})">📎 PDF添付</button>
-      <button class="btn btn-danger btn-sm"  onclick="openDeleteModal(${f.id})">🗑️</button>
+      <button class="btn btn-ghost   btn-sm" onclick="openEditModal(${f.id})">✏️</button>
+      <button class="btn btn-danger  btn-sm" onclick="openDeleteModal(${f.id})">🗑️</button>
     </div>`;
   }
 
-  function updateSummary() {
-    document.getElementById("totalCount").textContent  = files.length;
-    document.getElementById("doneCount").textContent   = files.filter(f => f.status === "保存済み").length;
-    document.getElementById("undoneCount").textContent = files.filter(f => f.status !== "保存済み").length;
-  }
-
-  /* ===== 新規登録モーダル ===== */
-  function updateTypeOptions() {
-    const cat = document.getElementById("reg-category").value;
-    const sel = document.getElementById("reg-type");
-    sel.innerHTML = cat
-      ? TYPES[cat].map(t => `<option value="${t}">${t}</option>`).join("")
-      : `<option value="">先に区分を選択</option>`;
-  }
-  function openRegisterModal() {
-    ["reg-category","reg-name","reg-counterparty","reg-amount"].forEach(id => document.getElementById(id).value = "");
-    document.getElementById("reg-type").innerHTML = `<option value="">先に区分を選択</option>`;
-    document.getElementById("reg-date").value = today();
-    document.getElementById("registerOverlay").classList.add("open");
-  }
-  function closeRegisterModal() { document.getElementById("registerOverlay").classList.remove("open"); }
-  function submitRegister() {
-    const cat  = document.getElementById("reg-category").value;
-    const type = document.getElementById("reg-type").value;
-    const name = document.getElementById("reg-name").value.trim();
-    const cp   = document.getElementById("reg-counterparty").value.trim();
-    const date = document.getElementById("reg-date").value;
-    const amt  = document.getElementById("reg-amount").value;
-    if (!cat || !type || !name || !cp || !date) { alert("※ 印の必須項目をすべて入力してください。"); return; }
-    files.unshift({ id:nextId++, category:cat, type, name, counterparty:cp, date, amount:amt ? parseInt(amt,10) : null, status:"未保存", savedAt:null, pdfName:null, source:null });
-    closeRegisterModal();
+  /* ===== 論理削除・復元 ===== */
+  function toggleShowDeleted() {
+    showDeleted = !showDeleted;
     applyFilter();
-    showToast("✅ ファイルを登録しました");
   }
 
-  /* ===== フォルダー設定モーダル ===== */
+  function openDeleteModal(id) {
+    deleteTargetId = id;
+    document.getElementById("deleteFileName").textContent = files.find(f => f.id === id)?.name;
+    document.getElementById("deleteOverlay").classList.add("open");
+  }
+  function closeDeleteModal() {
+    document.getElementById("deleteOverlay").classList.remove("open");
+    deleteTargetId = null;
+  }
+  function confirmDelete() {
+    if (deleteTargetId == null) return;
+    const f = files.find(x => x.id === deleteTargetId);
+    if (f) f.deleted = true;
+    closeDeleteModal();
+    applyFilter();
+    showToast("🗑️ 一覧から非表示にしました");
+  }
+  function restoreFile(id) {
+    const f = files.find(x => x.id === id);
+    if (f) f.deleted = false;
+    applyFilter();
+    showToast("↩ ファイルを復元しました");
+  }
+
+  /* ===== 編集モーダル ===== */
+  function openEditModal(id) {
+    editTargetId = id;
+    const f = files.find(x => x.id === id);
+    document.getElementById("edit-name").value        = f.name;
+    document.getElementById("edit-category").value    = f.category;
+    document.getElementById("edit-type").innerHTML    = TYPES[f.category].map(t =>
+      `<option value="${t}" ${t === f.type ? "selected" : ""}>${t}</option>`).join("");
+    document.getElementById("edit-counterparty").value = f.counterparty;
+    document.getElementById("edit-date").value        = f.date;
+    document.getElementById("edit-amount").value      = f.amount ?? "";
+    document.getElementById("editOverlay").classList.add("open");
+  }
+  function closeEditModal() {
+    document.getElementById("editOverlay").classList.remove("open");
+    editTargetId = null;
+  }
+  function submitEdit() {
+    const f = files.find(x => x.id === editTargetId);
+    if (!f) return;
+    f.type         = document.getElementById("edit-type").value;
+    f.counterparty = document.getElementById("edit-counterparty").value.trim() || f.counterparty;
+    f.date         = document.getElementById("edit-date").value;
+    const amt      = document.getElementById("edit-amount").value;
+    f.amount       = amt ? parseInt(amt, 10) : null;
+    closeEditModal();
+    applyFilter();
+    showToast("✅ 情報を更新しました");
+  }
+
+  /* ===== フォルダー設定 ===== */
   function updateFolderTypeOptions() {
     const cat = document.getElementById("folder-category").value;
     const sel = document.getElementById("folder-type");
@@ -831,7 +900,6 @@
       ? [`<option value="">未設定</option>`, ...TYPES[cat].map(t => `<option value="${t}">${t}</option>`)].join("")
       : `<option value="">未設定</option>`;
   }
-
   function openFolderModal() {
     document.getElementById("scanProgress").className = "scan-progress";
     document.getElementById("scanProgress").innerHTML = "";
@@ -860,9 +928,7 @@
           ${f.type && f.category ? typeBadge(f.category, f.type) : ""}
           <span class="folder-last-scan">${f.lastScan ? "最終スキャン: " + f.lastScan : "未スキャン"}</span>
         </div>
-        <div class="folder-actions">
-          <button class="btn btn-outline btn-sm" style="flex:1" onclick="scanFolder(${f.id})">🔄 このフォルダーをスキャン</button>
-        </div>
+        <button class="btn btn-outline btn-sm" style="width:100%" onclick="scanFolder(${f.id})">🔄 スキャン</button>
       </div>
     `).join("");
   }
@@ -899,39 +965,27 @@
 
     addLog(`🔍 スキャン開始: ${folder.path}`);
     await wait(600);
-
     const found = mockScanFiles(folder);
     if (!found.length) { addLog("ℹ️  新規ファイルは見つかりませんでした", "#f9e2af"); return; }
-
-    for (const f of found) {
-      await wait(300);
-      addLog(`  📄 ${f.name}`, "#cdd6f4");
-    }
+    for (const f of found) { await wait(300); addLog(`  📄 ${f.name}`, "#cdd6f4"); }
     await wait(400);
-
     let added = 0;
     for (const f of found) {
-      if (!files.some(x => x.name === f.name)) {
-        files.unshift({ ...f, id: nextId++ });
-        added++;
-      }
+      if (!files.some(x => x.name === f.name)) { files.unshift({ ...f, id: nextId++ }); added++; }
     }
-
     folder.lastScan = today();
-    addLog(`✅ ${found.length}件検出 / ${added}件を一覧に追加しました`, "#a6e3a1");
+    addLog(`✅ ${found.length}件検出 / ${added}件を一覧に追加`, "#a6e3a1");
     renderFolderList();
     applyFilter();
-    showToast(`📁 ${added}件のファイルを取り込みました`);
+    showToast(`📁 ${added}件取り込みました`);
   }
 
   async function scanAllFolders() {
     const log = document.getElementById("scanProgress");
-    log.className = "scan-progress show";
-    log.innerHTML = "";
+    log.className = "scan-progress show"; log.innerHTML = "";
     const addLog = (msg, color = "#89dceb") =>
       (log.innerHTML += `<div style="color:${color};line-height:1.8">${msg}</div>`, log.scrollTop = log.scrollHeight);
-
-    addLog(`🔄 全フォルダースキャン開始 (${folders.length}件)`);
+    addLog(`🔄 全フォルダースキャン (${folders.length}件)`);
     let totalAdded = 0;
     for (const folder of folders) {
       await wait(500);
@@ -939,20 +993,15 @@
       const found = mockScanFiles(folder);
       let added = 0;
       for (const f of found) {
-        if (!files.some(x => x.name === f.name)) {
-          files.unshift({ ...f, id: nextId++ });
-          added++;
-          totalAdded++;
-        }
+        if (!files.some(x => x.name === f.name)) { files.unshift({ ...f, id: nextId++ }); added++; totalAdded++; }
       }
       folder.lastScan = today();
-      addLog(`     → ${found.length}件検出 / ${added}件追加`, "#a6e3a1");
+      addLog(`     → ${added}件追加`, "#a6e3a1");
     }
-    await wait(300);
     addLog(`✅ 完了: 合計 ${totalAdded}件追加`, "#a6e3a1");
     renderFolderList();
     applyFilter();
-    showToast(`📁 合計 ${totalAdded}件のファイルを取り込みました`);
+    showToast(`📁 合計 ${totalAdded}件取り込みました`);
   }
 
   function mockScanFiles(folder) {
@@ -960,28 +1009,23 @@
     const type = folder.type || TYPES[cat][Math.floor(Math.random() * TYPES[cat].length)];
     const prefixes = MOCK_FILES[type] || ["DOC"];
     const count = Math.floor(Math.random() * 3) + 1;
-    const results = [];
     const mm = String(new Date().getMonth() + 1).padStart(2, "0");
-    for (let i = 0; i < count; i++) {
+    return Array.from({ length: count }, () => {
       const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
       const num    = String(Math.floor(Math.random() * 900) + 100);
       const ext    = MOCK_EXT[Math.floor(Math.random() * MOCK_EXT.length)];
-      results.push({
+      return {
         category: cat, type,
         name: `${prefix}-2024-${mm}${num}${ext}`,
-        counterparty: "（取得中）",
+        counterparty: "（未設定）",
         date: today(), amount: null,
         status: "未保存", savedAt: null, pdfName: null,
-        source: folder.label,
-      });
-    }
-    return results;
+        source: folder.label, deleted: false,
+      };
+    });
   }
 
   /* ===== PDF添付モーダル ===== */
-  let currentFileId = null;
-  let selectedFile  = null;
-
   function openPdfModal(id) {
     currentFileId = id; selectedFile = null;
     const f = files.find(x => x.id === id);
@@ -1017,7 +1061,6 @@
     document.getElementById("selectedFileName").textContent = "✔ " + file.name;
     document.getElementById("submitBtn").disabled = false;
   }
-
   async function startProcess() {
     if (!selectedFile) return;
     const f = files.find(x => x.id === currentFileId);
@@ -1027,10 +1070,8 @@
     const log = document.getElementById("processLog");
     log.className = "process-log show"; log.innerHTML = "";
     f.status = "処理中"; applyFilter();
-
     const add = (msg, cls = "log-info") => {
-      log.innerHTML += `<div class="log-line ${cls}">${msg}</div>`;
-      log.scrollTop = log.scrollHeight;
+      log.innerHTML += `<div class="log-line ${cls}">${msg}</div>`; log.scrollTop = log.scrollHeight;
     };
     await wait(400);  add("▶  処理を開始します...");
     await wait(500);  add(`📂  ${selectedFile.name} (${(selectedFile.size/1024).toFixed(1)} KB)`);
@@ -1040,30 +1081,11 @@
     await wait(400);  add("📧  [2/2] メール通知 — 送信中... (keiri@example.co.jp)", "log-wait");
     await wait(1200); add("✅  [2/2] メール通知 — 送信完了", "log-ok");
     await wait(300);  add("🎉  電子帳簿保存が完了しました", "log-ok");
-
     f.status = "保存済み"; f.savedAt = today(); f.pdfName = selectedFile.name;
     document.getElementById("successBanner").className = "success-banner show";
     document.getElementById("cancelBtn").disabled  = false;
     document.getElementById("cancelBtn").textContent = "閉じる";
     applyFilter();
-  }
-
-  /* ===== 削除モーダル ===== */
-  let deleteTargetId = null;
-  function openDeleteModal(id) {
-    deleteTargetId = id;
-    document.getElementById("deleteFileName").textContent = files.find(x => x.id === id)?.name;
-    document.getElementById("deleteOverlay").classList.add("open");
-  }
-  function closeDeleteModal() {
-    document.getElementById("deleteOverlay").classList.remove("open");
-    deleteTargetId = null;
-  }
-  function confirmDelete() {
-    if (deleteTargetId == null) return;
-    files.splice(files.findIndex(f => f.id === deleteTargetId), 1);
-    closeDeleteModal(); applyFilter();
-    showToast("🗑️ ファイルを削除しました");
   }
 
   /* ===== ユーティリティ ===== */
@@ -1076,6 +1098,7 @@
   function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   /* ===== 初期描画 ===== */
+  updateTypeFilter();
   applyFilter();
 </script>
 </body>
