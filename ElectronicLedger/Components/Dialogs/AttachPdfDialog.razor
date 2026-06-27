@@ -153,8 +153,7 @@
 
         try
         {
-            await EmailSvc.SendSavedNotificationAsync(
-                File.Name, File.Category, File.Type, File.Counterparty);
+            await EmailSvc.SendSavedNotificationAsync(File);
             AddLog("✅  [2/2] メール通知 — 送信完了", "#a6e3a1");
         }
         catch
