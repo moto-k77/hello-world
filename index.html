@@ -28,35 +28,37 @@
     header h1 { font-size: 18px; font-weight: 700; letter-spacing: .04em; }
     header .user { font-size: 13px; opacity: .8; }
 
-    /* ===== メインコンテンツ ===== */
-    main { max-width: 1100px; margin: 32px auto; padding: 0 24px; }
+    main { max-width: 1200px; margin: 32px auto; padding: 0 24px; }
 
     /* ===== サマリーカード ===== */
     .summary {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
       margin-bottom: 28px;
     }
     .card {
       background: #fff;
       border-radius: 10px;
-      padding: 20px 24px;
+      padding: 18px 20px;
       box-shadow: 0 1px 4px rgba(0,0,0,.08);
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
     }
-    .card .label { font-size: 12px; color: #888; }
-    .card .value { font-size: 32px; font-weight: 700; }
-    .card.total .value  { color: #1a3a6b; }
-    .card.done .value   { color: #1e8c45; }
+    .card .label { font-size: 11px; color: #888; }
+    .card .value { font-size: 28px; font-weight: 700; }
+    .card.total  .value { color: #1a3a6b; }
+    .card.sales  .value { color: #0d7c56; }
+    .card.purchase .value { color: #b45309; }
+    .card.done   .value { color: #1e8c45; }
     .card.undone .value { color: #c0392b; }
+    .card .sub   { font-size: 11px; color: #aaa; margin-top: 2px; }
 
-    /* ===== フィルター・アクションバー ===== */
+    /* ===== フィルターバー ===== */
     .toolbar {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       align-items: center;
       margin-bottom: 16px;
       flex-wrap: wrap;
@@ -70,7 +72,7 @@
       background: #fff;
       outline: none;
     }
-    .toolbar input[type="text"] { min-width: 220px; }
+    .toolbar input[type="text"] { min-width: 240px; }
     .toolbar select:focus,
     .toolbar input[type="text"]:focus { border-color: #1a3a6b; }
 
@@ -81,10 +83,10 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.08);
       overflow: hidden;
     }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
     thead th {
       background: #f0f2f8;
-      padding: 12px 16px;
+      padding: 11px 14px;
       text-align: left;
       font-weight: 600;
       color: #555;
@@ -94,44 +96,57 @@
     tbody tr { border-bottom: 1px solid #f0f2f8; transition: background .12s; }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: #f8f9fd; }
-    tbody td { padding: 14px 16px; vertical-align: middle; }
+    tbody td { padding: 13px 14px; vertical-align: middle; }
 
-    /* ===== バッジ（ファイル種別） ===== */
+    /* ===== カテゴリバッジ ===== */
+    .cat {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+    .cat-sales    { background: #dcfce7; color: #166534; }
+    .cat-purchase { background: #fef3c7; color: #92400e; }
+
+    /* ===== 書類種別バッジ ===== */
     .badge {
       display: inline-block;
       padding: 3px 10px;
       border-radius: 20px;
       font-size: 11px;
       font-weight: 600;
+      margin-top: 3px;
     }
-    .badge-invoice  { background: #e8f0fe; color: #1a56c4; }
-    .badge-order    { background: #fef3e2; color: #b45309; }
-    .badge-delivery { background: #e8f8f0; color: #1e7e45; }
-    .badge-receipt  { background: #f3e8fe; color: #7c3aed; }
+    /* 販売系（緑系） */
+    .badge-estimate-s  { background: #d1fae5; color: #065f46; }
+    .badge-order-s     { background: #a7f3d0; color: #064e3b; }
+    .badge-delivery-s  { background: #6ee7b7; color: #064e3b; }
+    .badge-invoice-s   { background: #34d399; color: #fff; }
+    .badge-other-s     { background: #e5e7eb; color: #374151; }
+    /* 仕入れ系（橙系） */
+    .badge-estimate-p  { background: #fef3c7; color: #92400e; }
+    .badge-purchase    { background: #fde68a; color: #78350f; }
+    .badge-delivery-p  { background: #fcd34d; color: #78350f; }
+    .badge-invoice-p   { background: #f59e0b; color: #fff; }
+    .badge-other-p     { background: #e5e7eb; color: #374151; }
 
     /* ===== ステータスバッジ ===== */
     .status {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 4px 12px;
+      padding: 4px 11px;
       border-radius: 20px;
       font-size: 12px;
       font-weight: 600;
+      white-space: nowrap;
     }
-    .status-done {
-      background: #d1fae5;
-      color: #065f46;
-    }
-    .status-undone {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-    .status-processing {
-      background: #fef9c3;
-      color: #854d0e;
-    }
-    .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .status-done       { background: #d1fae5; color: #065f46; }
+    .status-undone     { background: #fee2e2; color: #991b1b; }
+    .status-processing { background: #fef9c3; color: #854d0e; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .dot-done       { background: #10b981; }
     .dot-undone     { background: #ef4444; }
     .dot-processing { background: #f59e0b; animation: blink 1s infinite; }
@@ -154,10 +169,9 @@
     .btn:active:not(:disabled) { transform: scale(.97); }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
     .btn-primary { background: #1a3a6b; color: #fff; }
-    .btn-success { background: #1e8c45; color: #fff; }
     .btn-sm { padding: 5px 10px; font-size: 12px; }
 
-    .saved-info { font-size: 12px; color: #555; }
+    .saved-info { font-size: 12px; color: #555; line-height: 1.7; }
     .saved-date { font-size: 11px; color: #999; }
 
     /* ===== モーダル ===== */
@@ -175,18 +189,22 @@
       background: #fff;
       border-radius: 12px;
       padding: 32px;
-      width: 480px;
+      width: 500px;
       max-width: 95vw;
       box-shadow: 0 8px 32px rgba(0,0,0,.2);
       position: relative;
     }
-    .modal h2 { font-size: 17px; margin-bottom: 4px; color: #1a3a6b; }
-    .modal .doc-name {
+    .modal h2 { font-size: 17px; margin-bottom: 6px; color: #1a3a6b; }
+    .modal .doc-meta {
       font-size: 13px;
       color: #666;
       margin-bottom: 20px;
       padding-bottom: 16px;
       border-bottom: 1px solid #eee;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
     }
     .close-btn {
       position: absolute;
@@ -261,6 +279,8 @@
       gap: 10px;
       margin-top: 4px;
     }
+
+    .filename { font-weight: 600; word-break: break-all; }
   </style>
 </head>
 <body>
@@ -274,8 +294,18 @@
   <!-- サマリーカード -->
   <div class="summary">
     <div class="card total">
-      <span class="label">対象ファイル数</span>
+      <span class="label">対象ファイル 合計</span>
       <span class="value" id="totalCount">0</span>
+    </div>
+    <div class="card sales">
+      <span class="label">販売</span>
+      <span class="value" id="salesCount">0</span>
+      <span class="sub" id="salesSub"></span>
+    </div>
+    <div class="card purchase">
+      <span class="label">仕入れ</span>
+      <span class="value" id="purchaseCount">0</span>
+      <span class="sub" id="purchaseSub"></span>
     </div>
     <div class="card done">
       <span class="label">保存済み</span>
@@ -290,12 +320,19 @@
   <!-- フィルターバー -->
   <div class="toolbar">
     <input type="text" id="searchInput" placeholder="🔍  ファイル名・取引先で検索..." oninput="applyFilter()" />
+    <select id="categoryFilter" onchange="applyFilter()">
+      <option value="">販売・仕入れ（すべて）</option>
+      <option value="販売">販売</option>
+      <option value="仕入れ">仕入れ</option>
+    </select>
     <select id="typeFilter" onchange="applyFilter()">
       <option value="">すべての種別</option>
-      <option value="請求書">請求書</option>
+      <option value="見積書">見積書</option>
+      <option value="注文書">注文書</option>
       <option value="発注書">発注書</option>
       <option value="納品書">納品書</option>
-      <option value="領収書">領収書</option>
+      <option value="請求書">請求書</option>
+      <option value="その他">その他</option>
     </select>
     <select id="statusFilter" onchange="applyFilter()">
       <option value="">すべてのステータス</option>
@@ -310,6 +347,7 @@
       <thead>
         <tr>
           <th>ファイル名</th>
+          <th>区分</th>
           <th>種別</th>
           <th>取引先</th>
           <th>書類日付</th>
@@ -328,7 +366,7 @@
   <div class="modal">
     <button class="close-btn" onclick="closeModal()">✕</button>
     <h2>PDF を添付して電子帳簿保存</h2>
-    <div class="doc-name" id="modalDocName"></div>
+    <div class="doc-meta" id="modalDocMeta"></div>
 
     <!-- ドロップゾーン -->
     <div class="drop-zone" id="dropZone"
@@ -361,33 +399,56 @@
 </div>
 
 <script>
+  // ===== 書類種別 → バッジCSSクラス =====
+  const TYPE_BADGE = {
+    // 販売
+    "販売_見積書": "badge-estimate-s",
+    "販売_注文書": "badge-order-s",
+    "販売_納品書": "badge-delivery-s",
+    "販売_請求書": "badge-invoice-s",
+    "販売_その他": "badge-other-s",
+    // 仕入れ
+    "仕入れ_見積書": "badge-estimate-p",
+    "仕入れ_発注書": "badge-purchase",
+    "仕入れ_納品書": "badge-delivery-p",
+    "仕入れ_請求書": "badge-invoice-p",
+    "仕入れ_その他": "badge-other-p",
+  };
+
   // ===== サンプルデータ =====
   const files = [
-    { id:1, name:"INV-2024-0601.pdf",    type:"請求書", counterparty:"株式会社アルファ",   date:"2024-06-01", amount:330000,  status:"保存済み", savedAt:"2024-06-03", pdfName:"INV-2024-0601_signed.pdf" },
-    { id:2, name:"PO-2024-0605.xlsx",    type:"発注書", counterparty:"ベータ商事株式会社", date:"2024-06-05", amount:154000,  status:"未保存",   savedAt:null,        pdfName:null },
-    { id:3, name:"DN-2024-0610.csv",     type:"納品書", counterparty:"株式会社ガンマ",     date:"2024-06-10", amount:88000,   status:"未保存",   savedAt:null,        pdfName:null },
-    { id:4, name:"REC-2024-0612.jpg",    type:"領収書", counterparty:"デルタ物産",         date:"2024-06-12", amount:12800,   status:"保存済み", savedAt:"2024-06-12", pdfName:"REC-2024-0612.pdf" },
-    { id:5, name:"INV-2024-0615.pdf",    type:"請求書", counterparty:"イプシロン株式会社", date:"2024-06-15", amount:550000,  status:"未保存",   savedAt:null,        pdfName:null },
-    { id:6, name:"PO-2024-0618.docx",    type:"発注書", counterparty:"株式会社ゼータ",     date:"2024-06-18", amount:220000,  status:"未保存",   savedAt:null,        pdfName:null },
-    { id:7, name:"DN-2024-0620.xlsx",    type:"納品書", counterparty:"イータ工業株式会社", date:"2024-06-20", amount:176000,  status:"保存済み", savedAt:"2024-06-21", pdfName:"DN-2024-0620.pdf" },
-    { id:8, name:"INV-2024-0622.pdf",    type:"請求書", counterparty:"シータ商事",         date:"2024-06-22", amount:98000,   status:"未保存",   savedAt:null,        pdfName:null },
-    { id:9, name:"REC-2024-0624.png",    type:"領収書", counterparty:"イオタ交通",         date:"2024-06-24", amount:3200,    status:"未保存",   savedAt:null,        pdfName:null },
-    { id:10,name:"PO-2024-0625.pdf",     type:"発注書", counterparty:"株式会社カッパ",     date:"2024-06-25", amount:410000,  status:"保存済み", savedAt:"2024-06-25", pdfName:"PO-2024-0625_signed.pdf" },
+    // 販売
+    { id:1,  category:"販売",  type:"見積書", name:"EST-S-2024-0601.xlsx", counterparty:"株式会社アルファ",   date:"2024-06-01", amount:385000,  status:"保存済み", savedAt:"2024-06-02", pdfName:"EST-S-2024-0601.pdf" },
+    { id:2,  category:"販売",  type:"注文書", name:"ORD-2024-0605.pdf",   counterparty:"ベータ商事株式会社", date:"2024-06-05", amount:220000,  status:"未保存",   savedAt:null,        pdfName:null },
+    { id:3,  category:"販売",  type:"納品書", name:"DN-S-2024-0610.xlsx", counterparty:"株式会社ガンマ",     date:"2024-06-10", amount:220000,  status:"保存済み", savedAt:"2024-06-11", pdfName:"DN-S-2024-0610.pdf" },
+    { id:4,  category:"販売",  type:"請求書", name:"INV-S-2024-0615.pdf", counterparty:"デルタ工業株式会社", date:"2024-06-15", amount:242000,  status:"未保存",   savedAt:null,        pdfName:null },
+    { id:5,  category:"販売",  type:"その他", name:"CONTRACT-2024-0618.docx", counterparty:"イプシロン株式会社", date:"2024-06-18", amount:null, status:"未保存",   savedAt:null,        pdfName:null },
+    // 仕入れ
+    { id:6,  category:"仕入れ", type:"見積書", name:"EST-P-2024-0602.pdf",  counterparty:"ゼータ物産株式会社", date:"2024-06-02", amount:148500, status:"保存済み", savedAt:"2024-06-03", pdfName:"EST-P-2024-0602.pdf" },
+    { id:7,  category:"仕入れ", type:"発注書", name:"PO-2024-0607.xlsx",    counterparty:"エータ商事",         date:"2024-06-07", amount:162800, status:"未保存",   savedAt:null,        pdfName:null },
+    { id:8,  category:"仕入れ", type:"納品書", name:"DN-P-2024-0612.csv",   counterparty:"シータ工業株式会社", date:"2024-06-12", amount:162800, status:"保存済み", savedAt:"2024-06-13", pdfName:"DN-P-2024-0612.pdf" },
+    { id:9,  category:"仕入れ", type:"請求書", name:"INV-P-2024-0620.pdf",  counterparty:"イオタ株式会社",     date:"2024-06-20", amount:178200, status:"未保存",   savedAt:null,        pdfName:null },
+    { id:10, category:"仕入れ", type:"その他", name:"AGREEMENT-2024-0622.docx", counterparty:"カッパ商店",    date:"2024-06-22", amount:null,   status:"未保存",   savedAt:null,        pdfName:null },
   ];
 
   let currentFileId = null;
   let selectedFile  = null;
 
-  // ===== 初期描画 =====
+  // ===== テーブル描画 =====
   function renderTable(data) {
     const tbody = document.getElementById("fileTableBody");
+    if (data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:#aaa;">該当するファイルがありません</td></tr>`;
+      return;
+    }
     tbody.innerHTML = data.map(f => `
       <tr id="row-${f.id}">
-        <td><span style="font-weight:600">${f.name}</span></td>
-        <td>${typeBadge(f.type)}</td>
+        <td><span class="filename">${f.name}</span></td>
+        <td>${catBadge(f.category)}</td>
+        <td>${typeBadge(f.category, f.type)}</td>
         <td>${f.counterparty}</td>
         <td>${f.date}</td>
-        <td style="text-align:right">¥${f.amount.toLocaleString()}</td>
+        <td style="text-align:right">${f.amount != null ? "¥" + f.amount.toLocaleString() : "—"}</td>
         <td>${statusBadge(f.status)}</td>
         <td>${actionCell(f)}</td>
       </tr>
@@ -395,8 +456,14 @@
     updateSummary();
   }
 
-  function typeBadge(type) {
-    const cls = { 請求書:"badge-invoice", 発注書:"badge-order", 納品書:"badge-delivery", 領収書:"badge-receipt" }[type] || "";
+  function catBadge(cat) {
+    const cls = cat === "販売" ? "cat-sales" : "cat-purchase";
+    return `<span class="cat ${cls}">${cat}</span>`;
+  }
+
+  function typeBadge(cat, type) {
+    const key = `${cat}_${type}`;
+    const cls = TYPE_BADGE[key] || "badge-other-s";
     return `<span class="badge ${cls}">${type}</span>`;
   }
 
@@ -422,23 +489,35 @@
   }
 
   function updateSummary() {
-    const total  = files.length;
-    const done   = files.filter(f => f.status === "保存済み").length;
-    const undone = files.filter(f => f.status !== "保存済み").length;
-    document.getElementById("totalCount").textContent  = total;
-    document.getElementById("doneCount").textContent   = done;
-    document.getElementById("undoneCount").textContent = undone;
+    const total    = files.length;
+    const sales    = files.filter(f => f.category === "販売");
+    const purchase = files.filter(f => f.category === "仕入れ");
+    const done     = files.filter(f => f.status === "保存済み").length;
+    const undone   = files.filter(f => f.status !== "保存済み").length;
+
+    const salesDone    = sales.filter(f => f.status === "保存済み").length;
+    const purchaseDone = purchase.filter(f => f.status === "保存済み").length;
+
+    document.getElementById("totalCount").textContent    = total;
+    document.getElementById("salesCount").textContent    = sales.length;
+    document.getElementById("salesSub").textContent      = `保存済み ${salesDone} / 未保存 ${sales.length - salesDone}`;
+    document.getElementById("purchaseCount").textContent = purchase.length;
+    document.getElementById("purchaseSub").textContent   = `保存済み ${purchaseDone} / 未保存 ${purchase.length - purchaseDone}`;
+    document.getElementById("doneCount").textContent     = done;
+    document.getElementById("undoneCount").textContent   = undone;
   }
 
   // ===== フィルター =====
   function applyFilter() {
-    const kw     = document.getElementById("searchInput").value.toLowerCase();
-    const type   = document.getElementById("typeFilter").value;
-    const status = document.getElementById("statusFilter").value;
+    const kw       = document.getElementById("searchInput").value.toLowerCase();
+    const category = document.getElementById("categoryFilter").value;
+    const type     = document.getElementById("typeFilter").value;
+    const status   = document.getElementById("statusFilter").value;
     const filtered = files.filter(f =>
-      (!kw     || f.name.toLowerCase().includes(kw) || f.counterparty.toLowerCase().includes(kw)) &&
-      (!type   || f.type === type) &&
-      (!status || f.status === status)
+      (!kw       || f.name.toLowerCase().includes(kw) || f.counterparty.toLowerCase().includes(kw)) &&
+      (!category || f.category === category) &&
+      (!type     || f.type === type) &&
+      (!status   || f.status === status)
     );
     renderTable(filtered);
   }
@@ -448,15 +527,20 @@
     currentFileId = id;
     selectedFile  = null;
     const f = files.find(x => x.id === id);
-    document.getElementById("modalDocName").textContent = f.name + "　（" + f.counterparty + "）";
+    document.getElementById("modalDocMeta").innerHTML =
+      `${catBadge(f.category)} ${typeBadge(f.category, f.type)}
+       <span style="color:#333;font-weight:600">${f.name}</span>
+       <span style="color:#999">／</span>
+       <span>${f.counterparty}</span>`;
     document.getElementById("selectedFileName").textContent = "";
-    document.getElementById("processLog").className   = "process-log";
-    document.getElementById("processLog").innerHTML   = "";
-    document.getElementById("successBanner").className= "success-banner";
-    document.getElementById("submitBtn").disabled     = true;
-    document.getElementById("cancelBtn").textContent  = "キャンセル";
-    document.getElementById("dropZone").style.display = "";
-    document.getElementById("fileInput").value        = "";
+    document.getElementById("processLog").className    = "process-log";
+    document.getElementById("processLog").innerHTML    = "";
+    document.getElementById("successBanner").className = "success-banner";
+    document.getElementById("submitBtn").disabled      = true;
+    document.getElementById("cancelBtn").textContent   = "キャンセル";
+    document.getElementById("cancelBtn").disabled      = false;
+    document.getElementById("dropZone").style.display  = "";
+    document.getElementById("fileInput").value         = "";
     document.getElementById("overlay").classList.add("open");
   }
 
@@ -472,8 +556,7 @@
   function onDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove("drag-over");
-    const dt = e.dataTransfer;
-    if (dt.files.length > 0) handleFile(dt.files[0]);
+    if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
   }
   function onFileSelect(e) { if (e.target.files.length > 0) handleFile(e.target.files[0]); }
 
@@ -492,50 +575,47 @@
     if (!selectedFile) return;
     const f = files.find(x => x.id === currentFileId);
 
-    // UI を処理中状態へ
-    document.getElementById("submitBtn").disabled    = true;
-    document.getElementById("cancelBtn").disabled    = true;
-    document.getElementById("dropZone").style.display= "none";
+    document.getElementById("submitBtn").disabled     = true;
+    document.getElementById("cancelBtn").disabled     = true;
+    document.getElementById("dropZone").style.display = "none";
     const log = document.getElementById("processLog");
     log.className = "process-log show";
     log.innerHTML = "";
 
-    // 行を「処理中」に更新
     f.status = "処理中";
     applyFilter();
 
-    function addLog(msg, cls="log-info") {
+    function addLog(msg, cls = "log-info") {
       log.innerHTML += `<div class="log-line ${cls}">${msg}</div>`;
       log.scrollTop = log.scrollHeight;
     }
 
-    await wait(500);
+    await wait(400);
     addLog("▶  処理を開始します...", "log-info");
-    await wait(600);
-    addLog(`📂  ファイル確認: ${selectedFile.name} (${(selectedFile.size/1024).toFixed(1)} KB)`, "log-info");
+    await wait(500);
+    addLog(`📂  ファイル確認: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)`, "log-info");
+    await wait(700);
+    addLog(`📋  対象書類: [${f.category}] ${f.type}  ／  ${f.counterparty}`, "log-info");
     await wait(800);
     addLog("📤  [1/2] サーバーへのファイル保存 — 送信中...", "log-wait");
     await wait(1400);
     addLog("✅  [1/2] サーバーへのファイル保存 — 完了", "log-ok");
-    await wait(500);
+    await wait(400);
     addLog("📧  [2/2] メール通知 — 送信中...（宛先: keiri@example.co.jp）", "log-wait");
     await wait(1200);
     addLog("✅  [2/2] メール通知 — 送信完了", "log-ok");
-    await wait(400);
+    await wait(300);
     addLog("🎉  電子帳簿保存が完了しました", "log-ok");
 
-    // データ更新
     const today = new Date().toISOString().slice(0, 10);
     f.status  = "保存済み";
     f.savedAt = today;
     f.pdfName = selectedFile.name;
 
-    // 完了バナー
     document.getElementById("successBanner").className = "success-banner show";
     document.getElementById("cancelBtn").disabled  = false;
     document.getElementById("cancelBtn").textContent = "閉じる";
 
-    // テーブル更新
     updateSummary();
     applyFilter();
   }
