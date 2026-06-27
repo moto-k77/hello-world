@@ -32,11 +32,15 @@ app.UseAntiforgery();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-// DB作成＆初期データ投入
+// DB初期化
+// Database:AutoCreate = true  → アプリが自動でDBとテーブルを作成（開発向け）
+// Database:AutoCreate = false → database/setup.bat でDBを手動作成済みの場合
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    var db  = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var cfg = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    if (cfg.GetValue<bool>("Database:AutoCreate", true))
+        db.Database.EnsureCreated();
     await SeedData.InitializeAsync(db);
 }
 
