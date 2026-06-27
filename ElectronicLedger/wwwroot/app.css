@@ -1,0 +1,24 @@
+/* 削除済み行 */
+.deleted-row {
+    opacity: 0.45;
+    background: #f9f9f9 !important;
+}
+.deleted-row td:first-child {
+    text-decoration: line-through;
+    color: #aaa;
+}
+
+/* MudTable ホバー */
+.mud-table-row:hover td {
+    background: #f8f9fd;
+}
+
+/* ページ全体の背景 */
+.mud-main-content {
+    background: #f5f6fa !important;
+}
+
+/* カードの削除済みスタイル */
+.deleted-card {
+    opacity: 0.5;
+}
