@@ -33,35 +33,22 @@
 
     main { max-width: 1200px; margin: 20px auto; padding: 0 16px; }
 
-    /* ===== サマリーカード ===== */
-    .summary {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-    @media (max-width: 640px) {
-      .summary { grid-template-columns: repeat(3, 1fr); }
-      .summary .card:nth-child(4),
-      .summary .card:nth-child(5) { grid-column: span 1; }
-    }
-    .card {
-      background: #fff;
-      border-radius: 10px;
-      padding: 14px 16px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    /* ===== 件数バー ===== */
+    .count-bar {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 14px;
+      font-size: 13px;
+      color: #555;
+      flex-wrap: wrap;
     }
-    .card .label { font-size: 11px; color: #888; }
-    .card .value { font-size: 26px; font-weight: 700; }
-    .card.total    .value { color: #1a3a6b; }
-    .card.sales    .value { color: #0d7c56; }
-    .card.purchase .value { color: #b45309; }
-    .card.done     .value { color: #1e8c45; }
-    .card.undone   .value { color: #c0392b; }
-    .card .sub { font-size: 10px; color: #aaa; }
+    .count-bar .count-item { display: flex; align-items: center; gap: 5px; }
+    .count-bar .count-num  { font-weight: 700; font-size: 16px; }
+    .count-total  { color: #1a3a6b; }
+    .count-done   { color: #1e8c45; }
+    .count-undone { color: #c0392b; }
+    .count-sep    { color: #ddd; }
 
     /* ===== ツールバー ===== */
     .toolbar {
@@ -81,15 +68,10 @@
       outline: none;
       min-width: 0;
     }
-    .toolbar input[type="text"] { flex: 1 1 180px; }
+    .toolbar input[type="text"] { flex: 1 1 160px; }
     .toolbar select { flex: 0 0 auto; }
     .toolbar input:focus, .toolbar select:focus { border-color: #1a3a6b; }
-
-    .btn-new {
-      margin-left: auto;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
+    .toolbar-actions { display: flex; gap: 8px; margin-left: auto; flex-shrink: 0; }
 
     /* ===== テーブル（PC） ===== */
     .table-wrap {
@@ -112,15 +94,14 @@
     thead th.sortable { cursor: pointer; }
     thead th.sortable:hover { background: #e4e8f5; }
     thead th .sort-icon { margin-left: 4px; opacity: .4; font-size: 11px; }
-    thead th.sort-asc .sort-icon::after  { content: "▲"; opacity: 1; }
+    thead th.sort-asc  .sort-icon::after { content: "▲"; opacity: 1; }
     thead th.sort-desc .sort-icon::after { content: "▼"; opacity: 1; }
     thead th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: "⇅"; }
 
     tbody tr { border-bottom: 1px solid #f0f2f8; transition: background .1s; }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: #f8f9fd; }
-    tbody td { padding: 12px 12px; vertical-align: middle; }
-
+    tbody td { padding: 11px 12px; vertical-align: middle; }
     .empty-row td { text-align: center; padding: 40px; color: #aaa; }
 
     /* ===== カード表示（スマホ） ===== */
@@ -133,37 +114,46 @@
       background: #fff;
       border-radius: 10px;
       box-shadow: 0 1px 4px rgba(0,0,0,.08);
-      padding: 14px 16px;
+      overflow: hidden;
     }
+    /* ステータス別左ボーダー */
+    .file-card.status-done       { border-left: 4px solid #10b981; }
+    .file-card.status-undone     { border-left: 4px solid #ef4444; }
+    .file-card.status-processing { border-left: 4px solid #f59e0b; }
+
+    .file-card-inner { padding: 14px 16px; }
+
     .file-card-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .file-card-name { font-weight: 600; font-size: 13px; word-break: break-all; flex: 1; }
-    .file-card-badges { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+    .file-card-status { flex-shrink: 0; }
+
+    .file-card-badges { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
+
     .file-card-meta {
       font-size: 12px;
       color: #666;
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 2px 10px;
+      gap: 3px 10px;
       margin-bottom: 10px;
     }
-    .file-card-meta .meta-label { color: #aaa; }
+    .file-card-meta .meta-label { color: #aaa; white-space: nowrap; }
+
     .file-card-footer {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      justify-content: flex-end;
       gap: 8px;
       border-top: 1px solid #f0f2f8;
       padding-top: 10px;
-      margin-top: 2px;
     }
 
-    /* ===== バッジ類 ===== */
+    /* ===== バッジ ===== */
     .cat {
       display: inline-block;
       padding: 2px 8px;
@@ -195,7 +185,7 @@
     .status {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       padding: 3px 10px;
       border-radius: 20px;
       font-size: 11px;
@@ -224,15 +214,17 @@
       font-weight: 600;
       cursor: pointer;
       transition: opacity .15s, transform .1s;
-      text-decoration: none;
     }
     .btn:hover:not(:disabled) { opacity: .85; }
     .btn:active:not(:disabled) { transform: scale(.97); }
     .btn:disabled { opacity: .4; cursor: not-allowed; }
     .btn-primary { background: #1a3a6b; color: #fff; }
+    .btn-success { background: #1e8c45; color: #fff; }
     .btn-danger  { background: #fee2e2; color: #991b1b; }
     .btn-ghost   { background: #f3f4f6; color: #374151; }
+    .btn-outline { background: #fff; color: #1a3a6b; border: 1.5px solid #1a3a6b; }
     .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-icon { padding: 7px; font-size: 16px; }
 
     .saved-info { font-size: 11px; color: #555; line-height: 1.7; }
     .saved-date { font-size: 10px; color: #999; }
@@ -246,37 +238,34 @@
       z-index: 200;
       align-items: flex-end;
       justify-content: center;
-      padding-bottom: env(safe-area-inset-bottom);
     }
     .overlay.open { display: flex; }
-    @media (min-width: 600px) {
-      .overlay { align-items: center; }
-    }
+    @media (min-width: 600px) { .overlay { align-items: center; } }
+
     .modal {
       background: #fff;
       border-radius: 16px 16px 0 0;
-      padding: 24px 20px 32px;
+      padding: 20px 20px 36px;
       width: 100%;
-      max-width: 520px;
-      max-height: 90vh;
+      max-width: 540px;
+      max-height: 92vh;
       overflow-y: auto;
       box-shadow: 0 -4px 24px rgba(0,0,0,.15);
       position: relative;
     }
     @media (min-width: 600px) {
-      .modal { border-radius: 14px; padding: 28px; }
+      .modal { border-radius: 14px; padding: 28px; max-height: 85vh; }
     }
     .modal-handle {
       width: 36px; height: 4px;
-      background: #ddd;
-      border-radius: 2px;
-      margin: 0 auto 18px;
+      background: #ddd; border-radius: 2px;
+      margin: 0 auto 16px;
     }
     @media (min-width: 600px) { .modal-handle { display: none; } }
+
     .modal h2 { font-size: 16px; margin-bottom: 16px; color: #1a3a6b; }
     .close-btn {
-      position: absolute;
-      top: 16px; right: 16px;
+      position: absolute; top: 16px; right: 16px;
       background: none; border: none;
       font-size: 20px; cursor: pointer; color: #999; line-height: 1;
     }
@@ -285,22 +274,14 @@
     /* ===== フォーム ===== */
     .form-group { margin-bottom: 14px; }
     .form-group label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      color: #555;
-      margin-bottom: 5px;
+      display: block; font-size: 12px; font-weight: 600;
+      color: #555; margin-bottom: 5px;
     }
     .form-group label .req { color: #e53e3e; margin-left: 3px; }
     .form-control {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #d0d5de;
-      border-radius: 7px;
-      font-size: 14px;
-      outline: none;
-      background: #fff;
-      font-family: inherit;
+      width: 100%; padding: 10px 12px;
+      border: 1px solid #d0d5de; border-radius: 7px;
+      font-size: 14px; outline: none; background: #fff; font-family: inherit;
     }
     .form-control:focus { border-color: #1a3a6b; box-shadow: 0 0 0 3px rgba(26,58,107,.1); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -308,25 +289,15 @@
 
     /* ===== PDF モーダル ===== */
     .doc-meta {
-      font-size: 12px;
-      color: #666;
-      margin-bottom: 16px;
-      padding-bottom: 14px;
+      font-size: 12px; color: #666;
+      margin-bottom: 14px; padding-bottom: 12px;
       border-bottom: 1px solid #eee;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
     }
-
     .drop-zone {
-      border: 2px dashed #c5cae9;
-      border-radius: 8px;
-      padding: 28px 16px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .2s, background .2s;
-      margin-bottom: 14px;
+      border: 2px dashed #c5cae9; border-radius: 8px;
+      padding: 28px 16px; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s; margin-bottom: 14px;
     }
     .drop-zone:hover, .drop-zone.drag-over { border-color: #1a3a6b; background: #f0f4ff; }
     .drop-zone .icon { font-size: 32px; margin-bottom: 6px; }
@@ -334,16 +305,10 @@
     .drop-zone .selected-file { margin-top: 8px; font-size: 13px; font-weight: 600; color: #1a3a6b; }
 
     .process-log {
-      display: none;
-      background: #1e1e2e;
-      border-radius: 8px;
-      padding: 14px;
-      margin-bottom: 14px;
-      font-family: monospace;
-      font-size: 12px;
-      color: #cdd6f4;
-      max-height: 150px;
-      overflow-y: auto;
+      display: none; background: #1e1e2e; border-radius: 8px;
+      padding: 14px; margin-bottom: 14px;
+      font-family: monospace; font-size: 12px; color: #cdd6f4;
+      max-height: 140px; overflow-y: auto;
     }
     .process-log.show { display: block; }
     .log-line { line-height: 1.8; }
@@ -352,44 +317,69 @@
     .log-wait { color: #f9e2af; }
 
     .success-banner {
-      display: none;
-      background: #d1fae5;
-      border: 1px solid #6ee7b7;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 13px;
-      color: #065f46;
-      font-weight: 600;
-      margin-bottom: 14px;
-      text-align: center;
+      display: none; background: #d1fae5; border: 1px solid #6ee7b7;
+      border-radius: 8px; padding: 12px; font-size: 13px;
+      color: #065f46; font-weight: 600; margin-bottom: 14px; text-align: center;
     }
     .success-banner.show { display: block; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 
-    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+    /* ===== フォルダー設定モーダル ===== */
+    .folder-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .folder-item {
+      background: #f8f9fd; border: 1px solid #e0e3ef;
+      border-radius: 8px; padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .folder-item-header {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    }
+    .folder-label { font-weight: 700; font-size: 14px; }
+    .folder-path  { font-size: 11px; color: #888; font-family: monospace; word-break: break-all; }
+    .folder-meta  { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .folder-last-scan { font-size: 11px; color: #aaa; }
+    .folder-actions { display: flex; gap: 6px; }
+
+    .folder-add-form {
+      border: 1.5px dashed #c5cae9; border-radius: 8px;
+      padding: 14px; background: #fafbff;
+    }
+    .folder-add-form h3 { font-size: 13px; color: #555; margin-bottom: 12px; }
+
+    .scan-progress {
+      display: none; background: #1e1e2e; border-radius: 8px;
+      padding: 12px 14px; font-family: monospace; font-size: 12px;
+      color: #cdd6f4; max-height: 120px; overflow-y: auto; margin-top: 10px;
+    }
+    .scan-progress.show { display: block; }
 
     /* ===== 削除確認モーダル ===== */
     .confirm-body { font-size: 14px; color: #555; margin-bottom: 20px; line-height: 1.7; }
     .confirm-name { font-weight: 700; color: #333; word-break: break-all; }
 
-    /* ===== トースト通知 ===== */
+    /* ===== トースト ===== */
     #toast {
-      position: fixed;
-      bottom: 80px;
-      left: 50%;
+      position: fixed; bottom: 80px; left: 50%;
       transform: translateX(-50%) translateY(20px);
-      background: #333;
-      color: #fff;
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      opacity: 0;
-      transition: opacity .25s, transform .25s;
-      pointer-events: none;
-      z-index: 999;
-      white-space: nowrap;
+      background: #333; color: #fff;
+      padding: 10px 20px; border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      opacity: 0; transition: opacity .25s, transform .25s;
+      pointer-events: none; z-index: 999; white-space: nowrap;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ===== フォルダースキャン件数バッジ ===== */
+    .scan-count {
+      display: inline-block; background: #1a3a6b; color: #fff;
+      border-radius: 20px; font-size: 11px; font-weight: 700;
+      padding: 1px 8px; margin-left: 6px;
+    }
+    .source-tag {
+      display: inline-block; background: #ede9fe; color: #5b21b6;
+      border-radius: 4px; font-size: 10px; font-weight: 600;
+      padding: 1px 6px; margin-left: 4px; white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -400,29 +390,21 @@
 </header>
 
 <main>
-  <!-- サマリーカード -->
-  <div class="summary">
-    <div class="card total">
-      <span class="label">合計</span>
-      <span class="value" id="totalCount">0</span>
+  <!-- 件数バー -->
+  <div class="count-bar">
+    <div class="count-item">
+      <span class="count-num count-total" id="totalCount">0</span>
+      <span>件</span>
     </div>
-    <div class="card sales">
-      <span class="label">販売</span>
-      <span class="value" id="salesCount">0</span>
-      <span class="sub" id="salesSub"></span>
+    <span class="count-sep">|</span>
+    <div class="count-item">
+      <span class="count-num count-done" id="doneCount">0</span>
+      <span>件 保存済み</span>
     </div>
-    <div class="card purchase">
-      <span class="label">仕入れ</span>
-      <span class="value" id="purchaseCount">0</span>
-      <span class="sub" id="purchaseSub"></span>
-    </div>
-    <div class="card done">
-      <span class="label">保存済み</span>
-      <span class="value" id="doneCount">0</span>
-    </div>
-    <div class="card undone">
-      <span class="label">未保存</span>
-      <span class="value" id="undoneCount">0</span>
+    <span class="count-sep">|</span>
+    <div class="count-item">
+      <span class="count-num count-undone" id="undoneCount">0</span>
+      <span>件 未保存</span>
     </div>
   </div>
 
@@ -448,7 +430,10 @@
       <option value="未保存">未保存</option>
       <option value="保存済み">保存済み</option>
     </select>
-    <button class="btn btn-primary btn-new" onclick="openRegisterModal()">＋ 新規登録</button>
+    <div class="toolbar-actions">
+      <button class="btn btn-outline btn-sm" onclick="openFolderModal()" title="フォルダー設定">📁 フォルダー設定</button>
+      <button class="btn btn-primary btn-sm" onclick="openRegisterModal()">＋ 新規登録</button>
+    </div>
   </div>
 
   <!-- テーブル（PC） -->
@@ -456,12 +441,12 @@
     <table>
       <thead>
         <tr>
-          <th class="sortable" data-col="name"     onclick="sortBy('name')">ファイル名 <span class="sort-icon"></span></th>
+          <th class="sortable" data-col="name"          onclick="sortBy('name')">ファイル名 <span class="sort-icon"></span></th>
           <th>区分</th>
-          <th class="sortable" data-col="type"     onclick="sortBy('type')">種別 <span class="sort-icon"></span></th>
-          <th class="sortable" data-col="counterparty" onclick="sortBy('counterparty')">取引先 <span class="sort-icon"></span></th>
-          <th class="sortable" data-col="date"     onclick="sortBy('date')">日付 <span class="sort-icon"></span></th>
-          <th class="sortable" data-col="amount"   onclick="sortBy('amount')">金額（税込） <span class="sort-icon"></span></th>
+          <th class="sortable" data-col="type"          onclick="sortBy('type')">種別 <span class="sort-icon"></span></th>
+          <th class="sortable" data-col="counterparty"  onclick="sortBy('counterparty')">取引先 <span class="sort-icon"></span></th>
+          <th class="sortable" data-col="date"          onclick="sortBy('date')">日付 <span class="sort-icon"></span></th>
+          <th class="sortable" data-col="amount"        onclick="sortBy('amount')">金額（税込） <span class="sort-icon"></span></th>
           <th>ステータス</th>
           <th>操作</th>
         </tr>
@@ -480,7 +465,6 @@
     <div class="modal-handle"></div>
     <button class="close-btn" onclick="closeRegisterModal()">✕</button>
     <h2>📝 新規ファイル登録</h2>
-
     <div class="form-row">
       <div class="form-group">
         <label>区分 <span class="req">*</span></label>
@@ -497,17 +481,14 @@
         </select>
       </div>
     </div>
-
     <div class="form-group">
       <label>ファイル名 <span class="req">*</span></label>
       <input type="text" class="form-control" id="reg-name" placeholder="例: INV-2024-001.pdf" />
     </div>
-
     <div class="form-group">
       <label>取引先 <span class="req">*</span></label>
       <input type="text" class="form-control" id="reg-counterparty" placeholder="例: 株式会社サンプル" />
     </div>
-
     <div class="form-row">
       <div class="form-group">
         <label>書類日付 <span class="req">*</span></label>
@@ -518,10 +499,62 @@
         <input type="number" class="form-control" id="reg-amount" placeholder="例: 110000" min="0" />
       </div>
     </div>
-
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeRegisterModal()">キャンセル</button>
       <button class="btn btn-primary" onclick="submitRegister()">登録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== フォルダー設定モーダル ===== -->
+<div class="overlay" id="folderOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <button class="close-btn" onclick="closeFolderModal()">✕</button>
+    <h2>📁 フォルダー設定</h2>
+    <p style="font-size:12px;color:#888;margin-bottom:14px">
+      取り込み対象のフォルダーを登録します。スキャンするとフォルダー内のファイルを一覧に追加します。
+    </p>
+
+    <!-- 登録済みフォルダー一覧 -->
+    <div class="folder-list" id="folderList"></div>
+
+    <!-- スキャンログ -->
+    <div class="scan-progress" id="scanProgress"></div>
+
+    <!-- フォルダー追加フォーム -->
+    <div class="folder-add-form">
+      <h3>＋ フォルダーを追加</h3>
+      <div class="form-group">
+        <label>フォルダー名（表示用）<span class="req">*</span></label>
+        <input type="text" class="form-control" id="folder-label" placeholder="例: 販売請求書フォルダー" />
+      </div>
+      <div class="form-group">
+        <label>フォルダーパス <span class="req">*</span></label>
+        <input type="text" class="form-control" id="folder-path" placeholder="例: /共有サーバー/販売/請求書" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>既定の区分</label>
+          <select class="form-control" id="folder-category" onchange="updateFolderTypeOptions()">
+            <option value="">未設定</option>
+            <option value="販売">販売</option>
+            <option value="仕入れ">仕入れ</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>既定の種別</label>
+          <select class="form-control" id="folder-type">
+            <option value="">未設定</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="addFolder()">フォルダーを追加</button>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeFolderModal()">閉じる</button>
+      <button class="btn btn-success" onclick="scanAllFolders()">🔄 全フォルダーをスキャン</button>
     </div>
   </div>
 </div>
@@ -533,7 +566,6 @@
     <button class="close-btn" onclick="closePdfModal()">✕</button>
     <h2>📎 PDF を添付して電子帳簿保存</h2>
     <div class="doc-meta" id="pdfDocMeta"></div>
-
     <div class="drop-zone" id="dropZone"
          onclick="document.getElementById('fileInput').click()"
          ondragover="onDragOver(event)"
@@ -545,10 +577,8 @@
       <div class="selected-file" id="selectedFileName"></div>
     </div>
     <input type="file" id="fileInput" accept=".pdf" style="display:none" onchange="onFileSelect(event)" />
-
     <div class="process-log" id="processLog"></div>
     <div class="success-banner" id="successBanner">✅ 電子帳簿保存が完了しました</div>
-
     <div class="modal-footer">
       <button class="btn btn-ghost" id="cancelBtn" onclick="closePdfModal()">キャンセル</button>
       <button class="btn btn-primary" id="submitBtn" disabled onclick="startProcess()">保存を実行</button>
@@ -572,7 +602,6 @@
   </div>
 </div>
 
-<!-- トースト通知 -->
 <div id="toast"></div>
 
 <script>
@@ -581,7 +610,6 @@
     "販売":  ["見積書", "注文書", "納品書", "請求書", "その他"],
     "仕入れ": ["見積書", "発注書", "納品書", "請求書", "その他"],
   };
-
   const TYPE_BADGE = {
     "販売_見積書":  "badge-estimate-s",
     "販売_注文書":  "badge-order-s",
@@ -595,26 +623,42 @@
     "仕入れ_その他": "badge-other-p",
   };
 
+  // モックスキャン用ファイル名パターン
+  const MOCK_FILES = {
+    "見積書": ["EST", "QUOTE", "見積"],
+    "注文書": ["ORD", "ORDER", "注文"],
+    "発注書": ["PO", "PORDER", "発注"],
+    "納品書": ["DN", "DELIV", "納品"],
+    "請求書": ["INV", "INVOICE", "請求"],
+    "その他": ["DOC", "FILE", "書類"],
+  };
+  const MOCK_EXT = [".pdf", ".xlsx", ".docx", ".csv"];
+
   /* ===== データ ===== */
   let nextId = 11;
   const files = [
-    { id:1,  category:"販売",  type:"見積書", name:"EST-S-2024-0601.xlsx", counterparty:"株式会社アルファ",   date:"2024-06-01", amount:385000,  status:"保存済み", savedAt:"2024-06-02", pdfName:"EST-S-2024-0601.pdf" },
-    { id:2,  category:"販売",  type:"注文書", name:"ORD-2024-0605.pdf",    counterparty:"ベータ商事株式会社", date:"2024-06-05", amount:220000,  status:"未保存",   savedAt:null, pdfName:null },
-    { id:3,  category:"販売",  type:"納品書", name:"DN-S-2024-0610.xlsx",  counterparty:"株式会社ガンマ",     date:"2024-06-10", amount:220000,  status:"保存済み", savedAt:"2024-06-11", pdfName:"DN-S-2024-0610.pdf" },
-    { id:4,  category:"販売",  type:"請求書", name:"INV-S-2024-0615.pdf",  counterparty:"デルタ工業株式会社", date:"2024-06-15", amount:242000,  status:"未保存",   savedAt:null, pdfName:null },
-    { id:5,  category:"販売",  type:"その他", name:"CONTRACT-2024-0618.docx", counterparty:"イプシロン株式会社", date:"2024-06-18", amount:null,  status:"未保存",   savedAt:null, pdfName:null },
-    { id:6,  category:"仕入れ", type:"見積書", name:"EST-P-2024-0602.pdf",  counterparty:"ゼータ物産株式会社", date:"2024-06-02", amount:148500, status:"保存済み", savedAt:"2024-06-03", pdfName:"EST-P-2024-0602.pdf" },
-    { id:7,  category:"仕入れ", type:"発注書", name:"PO-2024-0607.xlsx",    counterparty:"エータ商事",         date:"2024-06-07", amount:162800, status:"未保存",   savedAt:null, pdfName:null },
-    { id:8,  category:"仕入れ", type:"納品書", name:"DN-P-2024-0612.csv",   counterparty:"シータ工業株式会社", date:"2024-06-12", amount:162800, status:"保存済み", savedAt:"2024-06-13", pdfName:"DN-P-2024-0612.pdf" },
-    { id:9,  category:"仕入れ", type:"請求書", name:"INV-P-2024-0620.pdf",  counterparty:"イオタ株式会社",     date:"2024-06-20", amount:178200, status:"未保存",   savedAt:null, pdfName:null },
-    { id:10, category:"仕入れ", type:"その他", name:"AGREEMENT-2024-0622.docx", counterparty:"カッパ商店",    date:"2024-06-22", amount:null,   status:"未保存",   savedAt:null, pdfName:null },
+    { id:1,  category:"販売",  type:"見積書", name:"EST-S-2024-0601.xlsx", counterparty:"株式会社アルファ",   date:"2024-06-01", amount:385000, status:"保存済み", savedAt:"2024-06-02", pdfName:"EST-S-2024-0601.pdf", source:null },
+    { id:2,  category:"販売",  type:"注文書", name:"ORD-2024-0605.pdf",    counterparty:"ベータ商事株式会社", date:"2024-06-05", amount:220000, status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
+    { id:3,  category:"販売",  type:"納品書", name:"DN-S-2024-0610.xlsx",  counterparty:"株式会社ガンマ",     date:"2024-06-10", amount:220000, status:"保存済み", savedAt:"2024-06-11", pdfName:"DN-S-2024-0610.pdf",  source:null },
+    { id:4,  category:"販売",  type:"請求書", name:"INV-S-2024-0615.pdf",  counterparty:"デルタ工業株式会社", date:"2024-06-15", amount:242000, status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
+    { id:5,  category:"販売",  type:"その他", name:"CONTRACT-2024-0618.docx", counterparty:"イプシロン株式会社", date:"2024-06-18", amount:null,  status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
+    { id:6,  category:"仕入れ", type:"見積書", name:"EST-P-2024-0602.pdf",  counterparty:"ゼータ物産株式会社", date:"2024-06-02", amount:148500, status:"保存済み", savedAt:"2024-06-03", pdfName:"EST-P-2024-0602.pdf", source:null },
+    { id:7,  category:"仕入れ", type:"発注書", name:"PO-2024-0607.xlsx",    counterparty:"エータ商事",         date:"2024-06-07", amount:162800, status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
+    { id:8,  category:"仕入れ", type:"納品書", name:"DN-P-2024-0612.csv",   counterparty:"シータ工業株式会社", date:"2024-06-12", amount:162800, status:"保存済み", savedAt:"2024-06-13", pdfName:"DN-P-2024-0612.pdf",  source:null },
+    { id:9,  category:"仕入れ", type:"請求書", name:"INV-P-2024-0620.pdf",  counterparty:"イオタ株式会社",     date:"2024-06-20", amount:178200, status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
+    { id:10, category:"仕入れ", type:"その他", name:"AGREEMENT-2024-0622.docx", counterparty:"カッパ商店",    date:"2024-06-22", amount:null,   status:"未保存",   savedAt:null,        pdfName:null,                  source:null },
   ];
 
-  /* ===== ソート状態 ===== */
+  let folders = [
+    { id:1, label:"販売 請求書フォルダー",   path:"/共有サーバー/販売/請求書",   category:"販売",  type:"請求書", lastScan:null },
+    { id:2, label:"仕入れ 発注書フォルダー", path:"/共有サーバー/仕入れ/発注書", category:"仕入れ", type:"発注書", lastScan:null },
+  ];
+  let nextFolderId = 3;
+
   let sortCol = "date";
   let sortDir = "desc";
 
-  /* ===== バッジ生成 ===== */
+  /* ===== バッジ ===== */
   function catBadge(cat) {
     return `<span class="cat ${cat === "販売" ? "cat-sales" : "cat-purchase"}">${cat}</span>`;
   }
@@ -632,26 +676,22 @@
 
   /* ===== ソート ===== */
   function sortBy(col) {
-    if (sortCol === col) {
-      sortDir = sortDir === "asc" ? "desc" : "asc";
-    } else {
-      sortCol = col;
-      sortDir = "asc";
-    }
+    sortDir = sortCol === col ? (sortDir === "asc" ? "desc" : "asc") : "asc";
+    sortCol = col;
     applyFilter();
     document.querySelectorAll("thead th[data-col]").forEach(th => {
       th.classList.remove("sort-asc", "sort-desc");
       if (th.dataset.col === sortCol) th.classList.add(sortDir === "asc" ? "sort-asc" : "sort-desc");
     });
   }
-
   function sortedData(data) {
     return [...data].sort((a, b) => {
-      let av = a[sortCol], bv = b[sortCol];
-      if (av == null) av = "";
-      if (bv == null) bv = "";
-      if (typeof av === "number" && typeof bv === "number") return sortDir === "asc" ? av - bv : bv - av;
-      return sortDir === "asc" ? String(av).localeCompare(String(bv), "ja") : String(bv).localeCompare(String(av), "ja");
+      let av = a[sortCol] ?? "", bv = b[sortCol] ?? "";
+      if (typeof av === "number" && typeof bv === "number")
+        return sortDir === "asc" ? av - bv : bv - av;
+      return sortDir === "asc"
+        ? String(av).localeCompare(String(bv), "ja")
+        : String(bv).localeCompare(String(av), "ja");
     });
   }
 
@@ -661,14 +701,12 @@
     const category = document.getElementById("categoryFilter").value;
     const type     = document.getElementById("typeFilter").value;
     const status   = document.getElementById("statusFilter").value;
-
     const filtered = sortedData(files.filter(f =>
       (!kw       || f.name.toLowerCase().includes(kw) || f.counterparty.toLowerCase().includes(kw)) &&
       (!category || f.category === category) &&
       (!type     || f.type === type) &&
       (!status   || f.status === status)
     ));
-
     renderTable(filtered);
     renderCards(filtered);
     updateSummary();
@@ -676,13 +714,16 @@
 
   function renderTable(data) {
     const tbody = document.getElementById("fileTableBody");
-    if (data.length === 0) {
+    if (!data.length) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="8">該当するファイルがありません</td></tr>`;
       return;
     }
     tbody.innerHTML = data.map(f => `
       <tr id="row-${f.id}">
-        <td style="font-weight:600;word-break:break-all;max-width:200px">${f.name}</td>
+        <td style="font-weight:600;word-break:break-all;max-width:180px">
+          ${f.name}
+          ${f.source ? `<span class="source-tag">📁 ${f.source}</span>` : ""}
+        </td>
         <td>${catBadge(f.category)}</td>
         <td>${typeBadge(f.category, f.type)}</td>
         <td>${f.counterparty}</td>
@@ -707,54 +748,50 @@
 
   function renderCards(data) {
     const list = document.getElementById("cardList");
-    if (data.length === 0) {
+    if (!data.length) {
       list.innerHTML = `<div style="text-align:center;padding:40px;color:#aaa">該当するファイルがありません</div>`;
       return;
     }
+    const statusClass = s => s === "保存済み" ? "status-done" : s === "処理中" ? "status-processing" : "status-undone";
     list.innerHTML = data.map(f => `
-      <div class="file-card" id="card-${f.id}">
-        <div class="file-card-header">
-          <div class="file-card-name">${f.name}</div>
+      <div class="file-card ${statusClass(f.status)}" id="card-${f.id}">
+        <div class="file-card-inner">
+          <div class="file-card-header">
+            <div class="file-card-name">
+              ${f.name}
+              ${f.source ? `<span class="source-tag">📁 ${f.source}</span>` : ""}
+            </div>
+            <div class="file-card-status">${statusBadge(f.status)}</div>
+          </div>
           <div class="file-card-badges">
             ${catBadge(f.category)}
             ${typeBadge(f.category, f.type)}
           </div>
-        </div>
-        <div class="file-card-meta">
-          <span class="meta-label">取引先</span><span>${f.counterparty}</span>
-          <span class="meta-label">日付</span><span>${f.date}</span>
-          <span class="meta-label">金額</span><span>${f.amount != null ? "¥" + f.amount.toLocaleString() : "—"}</span>
-          ${f.status === "保存済み" ? `<span class="meta-label">PDF</span><span style="font-size:11px">📎 ${f.pdfName}（${f.savedAt}）</span>` : ""}
-        </div>
-        <div class="file-card-footer">
-          ${statusBadge(f.status)}
-          ${cardAction(f)}
+          <div class="file-card-meta">
+            <span class="meta-label">取引先</span><span>${f.counterparty}</span>
+            <span class="meta-label">日付</span><span>${f.date}</span>
+            <span class="meta-label">金額</span><span>${f.amount != null ? "¥" + f.amount.toLocaleString() : "—"}</span>
+            ${f.status === "保存済み" ? `<span class="meta-label">PDF</span><span style="font-size:11px">📎 ${f.pdfName}（${f.savedAt}）</span>` : ""}
+          </div>
+          <div class="file-card-footer">${cardAction(f)}</div>
         </div>
       </div>
     `).join("");
   }
 
   function cardAction(f) {
-    if (f.status === "保存済み") return "";
+    if (f.status === "保存済み") return `<span style="font-size:11px;color:#aaa">保存完了</span>`;
     if (f.status === "処理中")   return `<button class="btn btn-sm" disabled>処理中...</button>`;
-    return `<div style="display:flex;gap:6px">
+    return `<div style="display:flex;gap:6px;margin-left:auto">
       <button class="btn btn-primary btn-sm" onclick="openPdfModal(${f.id})">📎 PDF添付</button>
       <button class="btn btn-danger btn-sm"  onclick="openDeleteModal(${f.id})">🗑️</button>
     </div>`;
   }
 
   function updateSummary() {
-    const sales    = files.filter(f => f.category === "販売");
-    const purchase = files.filter(f => f.category === "仕入れ");
-    const sd = sales.filter(f => f.status === "保存済み").length;
-    const pd = purchase.filter(f => f.status === "保存済み").length;
-    document.getElementById("totalCount").textContent    = files.length;
-    document.getElementById("salesCount").textContent    = sales.length;
-    document.getElementById("salesSub").textContent      = `済 ${sd} 未 ${sales.length - sd}`;
-    document.getElementById("purchaseCount").textContent = purchase.length;
-    document.getElementById("purchaseSub").textContent   = `済 ${pd} 未 ${purchase.length - pd}`;
-    document.getElementById("doneCount").textContent     = files.filter(f => f.status === "保存済み").length;
-    document.getElementById("undoneCount").textContent   = files.filter(f => f.status !== "保存済み").length;
+    document.getElementById("totalCount").textContent  = files.length;
+    document.getElementById("doneCount").textContent   = files.filter(f => f.status === "保存済み").length;
+    document.getElementById("undoneCount").textContent = files.filter(f => f.status !== "保存済み").length;
   }
 
   /* ===== 新規登録モーダル ===== */
@@ -765,50 +802,180 @@
       ? TYPES[cat].map(t => `<option value="${t}">${t}</option>`).join("")
       : `<option value="">先に区分を選択</option>`;
   }
-
   function openRegisterModal() {
-    document.getElementById("reg-category").value = "";
+    ["reg-category","reg-name","reg-counterparty","reg-amount"].forEach(id => document.getElementById(id).value = "");
     document.getElementById("reg-type").innerHTML = `<option value="">先に区分を選択</option>`;
-    document.getElementById("reg-name").value = "";
-    document.getElementById("reg-counterparty").value = "";
-    document.getElementById("reg-date").value = new Date().toISOString().slice(0, 10);
-    document.getElementById("reg-amount").value = "";
+    document.getElementById("reg-date").value = today();
     document.getElementById("registerOverlay").classList.add("open");
   }
-
-  function closeRegisterModal() {
-    document.getElementById("registerOverlay").classList.remove("open");
-  }
-
+  function closeRegisterModal() { document.getElementById("registerOverlay").classList.remove("open"); }
   function submitRegister() {
-    const cat    = document.getElementById("reg-category").value;
-    const type   = document.getElementById("reg-type").value;
-    const name   = document.getElementById("reg-name").value.trim();
-    const cp     = document.getElementById("reg-counterparty").value.trim();
-    const date   = document.getElementById("reg-date").value;
-    const amount = document.getElementById("reg-amount").value;
-
-    if (!cat || !type || !name || !cp || !date) {
-      alert("※ 印の必須項目をすべて入力してください。");
-      return;
-    }
-
-    files.unshift({
-      id: nextId++,
-      category: cat,
-      type,
-      name,
-      counterparty: cp,
-      date,
-      amount: amount ? parseInt(amount, 10) : null,
-      status: "未保存",
-      savedAt: null,
-      pdfName: null,
-    });
-
+    const cat  = document.getElementById("reg-category").value;
+    const type = document.getElementById("reg-type").value;
+    const name = document.getElementById("reg-name").value.trim();
+    const cp   = document.getElementById("reg-counterparty").value.trim();
+    const date = document.getElementById("reg-date").value;
+    const amt  = document.getElementById("reg-amount").value;
+    if (!cat || !type || !name || !cp || !date) { alert("※ 印の必須項目をすべて入力してください。"); return; }
+    files.unshift({ id:nextId++, category:cat, type, name, counterparty:cp, date, amount:amt ? parseInt(amt,10) : null, status:"未保存", savedAt:null, pdfName:null, source:null });
     closeRegisterModal();
     applyFilter();
     showToast("✅ ファイルを登録しました");
+  }
+
+  /* ===== フォルダー設定モーダル ===== */
+  function updateFolderTypeOptions() {
+    const cat = document.getElementById("folder-category").value;
+    const sel = document.getElementById("folder-type");
+    sel.innerHTML = cat
+      ? [`<option value="">未設定</option>`, ...TYPES[cat].map(t => `<option value="${t}">${t}</option>`)].join("")
+      : `<option value="">未設定</option>`;
+  }
+
+  function openFolderModal() {
+    document.getElementById("scanProgress").className = "scan-progress";
+    document.getElementById("scanProgress").innerHTML = "";
+    renderFolderList();
+    document.getElementById("folderOverlay").classList.add("open");
+  }
+  function closeFolderModal() { document.getElementById("folderOverlay").classList.remove("open"); }
+
+  function renderFolderList() {
+    const list = document.getElementById("folderList");
+    if (!folders.length) {
+      list.innerHTML = `<div style="text-align:center;color:#aaa;font-size:13px;padding:16px">フォルダーが登録されていません</div>`;
+      return;
+    }
+    list.innerHTML = folders.map(f => `
+      <div class="folder-item" id="folder-item-${f.id}">
+        <div class="folder-item-header">
+          <div>
+            <div class="folder-label">📁 ${f.label}</div>
+            <div class="folder-path">${f.path}</div>
+          </div>
+          <button class="btn btn-danger btn-sm" onclick="deleteFolder(${f.id})">削除</button>
+        </div>
+        <div class="folder-meta">
+          ${f.category ? catBadge(f.category) : ""}
+          ${f.type && f.category ? typeBadge(f.category, f.type) : ""}
+          <span class="folder-last-scan">${f.lastScan ? "最終スキャン: " + f.lastScan : "未スキャン"}</span>
+        </div>
+        <div class="folder-actions">
+          <button class="btn btn-outline btn-sm" style="flex:1" onclick="scanFolder(${f.id})">🔄 このフォルダーをスキャン</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function addFolder() {
+    const label = document.getElementById("folder-label").value.trim();
+    const path  = document.getElementById("folder-path").value.trim();
+    const cat   = document.getElementById("folder-category").value;
+    const type  = document.getElementById("folder-type").value;
+    if (!label || !path) { alert("フォルダー名とパスを入力してください。"); return; }
+    folders.push({ id: nextFolderId++, label, path, category: cat || null, type: type || null, lastScan: null });
+    ["folder-label","folder-path"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("folder-category").value = "";
+    document.getElementById("folder-type").innerHTML = `<option value="">未設定</option>`;
+    renderFolderList();
+    showToast("📁 フォルダーを追加しました");
+  }
+
+  function deleteFolder(id) {
+    if (!confirm("このフォルダーを削除しますか？")) return;
+    folders = folders.filter(f => f.id !== id);
+    renderFolderList();
+    showToast("🗑️ フォルダーを削除しました");
+  }
+
+  /* ===== スキャン（モック） ===== */
+  async function scanFolder(folderId) {
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return;
+    const log = document.getElementById("scanProgress");
+    log.className = "scan-progress show";
+    const addLog = (msg, color = "#89dceb") =>
+      (log.innerHTML += `<div style="color:${color};line-height:1.8">${msg}</div>`, log.scrollTop = log.scrollHeight);
+
+    addLog(`🔍 スキャン開始: ${folder.path}`);
+    await wait(600);
+
+    const found = mockScanFiles(folder);
+    if (!found.length) { addLog("ℹ️  新規ファイルは見つかりませんでした", "#f9e2af"); return; }
+
+    for (const f of found) {
+      await wait(300);
+      addLog(`  📄 ${f.name}`, "#cdd6f4");
+    }
+    await wait(400);
+
+    let added = 0;
+    for (const f of found) {
+      if (!files.some(x => x.name === f.name)) {
+        files.unshift({ ...f, id: nextId++ });
+        added++;
+      }
+    }
+
+    folder.lastScan = today();
+    addLog(`✅ ${found.length}件検出 / ${added}件を一覧に追加しました`, "#a6e3a1");
+    renderFolderList();
+    applyFilter();
+    showToast(`📁 ${added}件のファイルを取り込みました`);
+  }
+
+  async function scanAllFolders() {
+    const log = document.getElementById("scanProgress");
+    log.className = "scan-progress show";
+    log.innerHTML = "";
+    const addLog = (msg, color = "#89dceb") =>
+      (log.innerHTML += `<div style="color:${color};line-height:1.8">${msg}</div>`, log.scrollTop = log.scrollHeight);
+
+    addLog(`🔄 全フォルダースキャン開始 (${folders.length}件)`);
+    let totalAdded = 0;
+    for (const folder of folders) {
+      await wait(500);
+      addLog(`  📁 ${folder.label} ...`);
+      const found = mockScanFiles(folder);
+      let added = 0;
+      for (const f of found) {
+        if (!files.some(x => x.name === f.name)) {
+          files.unshift({ ...f, id: nextId++ });
+          added++;
+          totalAdded++;
+        }
+      }
+      folder.lastScan = today();
+      addLog(`     → ${found.length}件検出 / ${added}件追加`, "#a6e3a1");
+    }
+    await wait(300);
+    addLog(`✅ 完了: 合計 ${totalAdded}件追加`, "#a6e3a1");
+    renderFolderList();
+    applyFilter();
+    showToast(`📁 合計 ${totalAdded}件のファイルを取り込みました`);
+  }
+
+  function mockScanFiles(folder) {
+    const cat  = folder.category || (Math.random() > 0.5 ? "販売" : "仕入れ");
+    const type = folder.type || TYPES[cat][Math.floor(Math.random() * TYPES[cat].length)];
+    const prefixes = MOCK_FILES[type] || ["DOC"];
+    const count = Math.floor(Math.random() * 3) + 1;
+    const results = [];
+    const mm = String(new Date().getMonth() + 1).padStart(2, "0");
+    for (let i = 0; i < count; i++) {
+      const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+      const num    = String(Math.floor(Math.random() * 900) + 100);
+      const ext    = MOCK_EXT[Math.floor(Math.random() * MOCK_EXT.length)];
+      results.push({
+        category: cat, type,
+        name: `${prefix}-2024-${mm}${num}${ext}`,
+        counterparty: "（取得中）",
+        date: today(), amount: null,
+        status: "未保存", savedAt: null, pdfName: null,
+        source: folder.label,
+      });
+    }
+    return results;
   }
 
   /* ===== PDF添付モーダル ===== */
@@ -816,14 +983,12 @@
   let selectedFile  = null;
 
   function openPdfModal(id) {
-    currentFileId = id;
-    selectedFile  = null;
+    currentFileId = id; selectedFile = null;
     const f = files.find(x => x.id === id);
     document.getElementById("pdfDocMeta").innerHTML =
       `${catBadge(f.category)} ${typeBadge(f.category, f.type)}
        <span style="font-weight:600;color:#333">${f.name}</span>
-       <span style="color:#ccc">／</span>
-       <span>${f.counterparty}</span>`;
+       <span style="color:#ccc">／</span><span>${f.counterparty}</span>`;
     document.getElementById("selectedFileName").textContent = "";
     document.getElementById("processLog").className    = "process-log";
     document.getElementById("processLog").innerHTML    = "";
@@ -835,22 +1000,17 @@
     document.getElementById("fileInput").value         = "";
     document.getElementById("pdfOverlay").classList.add("open");
   }
-
   function closePdfModal() {
     document.getElementById("pdfOverlay").classList.remove("open");
-    currentFileId = null;
-    selectedFile  = null;
+    currentFileId = null; selectedFile = null;
   }
-
-  function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add("drag-over"); }
+  function onDragOver(e)  { e.preventDefault(); e.currentTarget.classList.add("drag-over"); }
   function onDragLeave(e) { e.currentTarget.classList.remove("drag-over"); }
   function onDrop(e) {
-    e.preventDefault();
-    e.currentTarget.classList.remove("drag-over");
+    e.preventDefault(); e.currentTarget.classList.remove("drag-over");
     if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
   }
   function onFileSelect(e) { if (e.target.files.length > 0) handleFile(e.target.files[0]); }
-
   function handleFile(file) {
     if (!file.name.toLowerCase().endsWith(".pdf")) { alert("PDF ファイルを選択してください。"); return; }
     selectedFile = file;
@@ -865,29 +1025,23 @@
     document.getElementById("cancelBtn").disabled     = true;
     document.getElementById("dropZone").style.display = "none";
     const log = document.getElementById("processLog");
-    log.className = "process-log show";
-    log.innerHTML = "";
-    f.status = "処理中";
-    applyFilter();
+    log.className = "process-log show"; log.innerHTML = "";
+    f.status = "処理中"; applyFilter();
 
     const add = (msg, cls = "log-info") => {
       log.innerHTML += `<div class="log-line ${cls}">${msg}</div>`;
       log.scrollTop = log.scrollHeight;
     };
-
-    await wait(400);  add("▶  処理を開始します...", "log-info");
-    await wait(500);  add(`📂  ${selectedFile.name} (${(selectedFile.size/1024).toFixed(1)} KB)`, "log-info");
-    await wait(700);  add(`📋  [${f.category}] ${f.type}  ／  ${f.counterparty}`, "log-info");
+    await wait(400);  add("▶  処理を開始します...");
+    await wait(500);  add(`📂  ${selectedFile.name} (${(selectedFile.size/1024).toFixed(1)} KB)`);
+    await wait(700);  add(`📋  [${f.category}] ${f.type}  ／  ${f.counterparty}`);
     await wait(800);  add("📤  [1/2] サーバーへのファイル保存 — 送信中...", "log-wait");
     await wait(1400); add("✅  [1/2] サーバーへのファイル保存 — 完了", "log-ok");
     await wait(400);  add("📧  [2/2] メール通知 — 送信中... (keiri@example.co.jp)", "log-wait");
     await wait(1200); add("✅  [2/2] メール通知 — 送信完了", "log-ok");
     await wait(300);  add("🎉  電子帳簿保存が完了しました", "log-ok");
 
-    f.status  = "保存済み";
-    f.savedAt = new Date().toISOString().slice(0, 10);
-    f.pdfName = selectedFile.name;
-
+    f.status = "保存済み"; f.savedAt = today(); f.pdfName = selectedFile.name;
     document.getElementById("successBanner").className = "success-banner show";
     document.getElementById("cancelBtn").disabled  = false;
     document.getElementById("cancelBtn").textContent = "閉じる";
@@ -896,36 +1050,29 @@
 
   /* ===== 削除モーダル ===== */
   let deleteTargetId = null;
-
   function openDeleteModal(id) {
     deleteTargetId = id;
-    const f = files.find(x => x.id === id);
-    document.getElementById("deleteFileName").textContent = f.name;
+    document.getElementById("deleteFileName").textContent = files.find(x => x.id === id)?.name;
     document.getElementById("deleteOverlay").classList.add("open");
   }
-
   function closeDeleteModal() {
     document.getElementById("deleteOverlay").classList.remove("open");
     deleteTargetId = null;
   }
-
   function confirmDelete() {
     if (deleteTargetId == null) return;
-    const idx = files.findIndex(f => f.id === deleteTargetId);
-    if (idx !== -1) files.splice(idx, 1);
-    closeDeleteModal();
-    applyFilter();
+    files.splice(files.findIndex(f => f.id === deleteTargetId), 1);
+    closeDeleteModal(); applyFilter();
     showToast("🗑️ ファイルを削除しました");
   }
 
-  /* ===== トースト ===== */
+  /* ===== ユーティリティ ===== */
+  function today() { return new Date().toISOString().slice(0, 10); }
   function showToast(msg) {
     const t = document.getElementById("toast");
-    t.textContent = msg;
-    t.classList.add("show");
+    t.textContent = msg; t.classList.add("show");
     setTimeout(() => t.classList.remove("show"), 2500);
   }
-
   function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   /* ===== 初期描画 ===== */
