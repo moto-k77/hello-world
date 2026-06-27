@@ -1,133 +1,130 @@
 """
-一括請求書作成マクロ用 Excel テンプレート生成スクリプト
+一括請求書作成マクロ用ファイル生成スクリプト
+
+生成されるファイル:
+  BulkInvoiceTemplate.xlsx  ... マクロ管理ブック（設定・請求先リスト）
+  請求書テンプレート.xlsx     ... 請求書のテンプレートファイル（コピー元）
+
+既に独自のテンプレートファイルがある場合は 請求書テンプレート.xlsx の
+生成をスキップし、設定シートのパスをそちらに変更してください。
 
 使い方:
     pip install openpyxl
     python create_template.py
-
-生成されるファイル: BulkInvoiceTemplate.xlsx
 """
 
 import openpyxl
-from openpyxl.styles import (
-    Font, Alignment, PatternFill, Border, Side, numbers
-)
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 
-# ---- スタイル定義 ----
+# ---- 共通スタイル ----
 
-def thin_border(**kwargs):
+def thin_border(**overrides):
     sides = {k: Side(style="thin") for k in ("left", "right", "top", "bottom")}
-    sides.update({k: Side(style=v) for k, v in kwargs.items()})
+    sides.update({k: Side(style=v) for k, v in overrides.items()})
     return Border(**sides)
 
-def medium_border(**kwargs):
-    sides = {k: Side(style="thin") for k in ("left", "right", "top", "bottom")}
-    sides.update({k: Side(style=v) for k, v in kwargs.items()})
-    return Border(**sides)
+HEADER_FILL  = PatternFill("solid", fgColor="1A3A6B")
+SUBHEAD_FILL = PatternFill("solid", fgColor="D6E4F7")
+AMOUNT_FILL  = PatternFill("solid", fgColor="F0F4FF")
+TOTAL_FILL   = PatternFill("solid", fgColor="1A3A6B")
+ODD_FILL     = PatternFill("solid", fgColor="F8F9FF")
 
-HEADER_FILL   = PatternFill("solid", fgColor="1A3A6B")
-SUBHEAD_FILL  = PatternFill("solid", fgColor="D6E4F7")
-AMOUNT_FILL   = PatternFill("solid", fgColor="F0F4FF")
-TOTAL_FILL    = PatternFill("solid", fgColor="1A3A6B")
-ODD_ROW_FILL  = PatternFill("solid", fgColor="F8F9FF")
-
-WHITE = Font(color="FFFFFF", bold=True)
-BLUE  = Font(color="1A3A6B", bold=True)
-GRAY  = Font(color="888888")
-NUM_FMT = '#,##0'
+WHITE   = Font(color="FFFFFF", bold=True)
+BLUE    = Font(color="1A3A6B", bold=True)
+GRAY    = Font(color="888888")
+NUM_FMT = "#,##0"
 
 
 # ================================================================
-# 設定シート
+# 管理ブック: 設定シート
 # ================================================================
 def setup_setting_sheet(ws):
     ws.title = "設定"
+    ws.column_dimensions["A"].width = 26
+    ws.column_dimensions["B"].width = 50
 
-    ws.column_dimensions["A"].width = 22
-    ws.column_dimensions["B"].width = 45
-
-    # タイトル行
     ws["A1"] = "【設定】自社情報・マクロ設定"
     ws["A1"].font = Font(bold=True, size=13, color="1A3A6B")
     ws.merge_cells("A1:B1")
 
     rows = [
-        ("A2", "B2", "会社名",           "株式会社サンプル"),
-        ("A3", "B3", "住所",             "〒100-0001 東京都千代田区○○1-2-3"),
-        ("A4", "B4", "TEL",             "03-0000-0000"),
-        ("A5", "B5", "振込先情報",        "○○銀行 △△支店 普通 1234567 カ）サンプル"),
-        ("A6", "B6", "支払期限（日数）",   30),
-        ("A7", "B7", "請求書番号プレフィックス", "INV"),
+        ("A2",  "B2",  "会社名",                   "株式会社サンプル"),
+        ("A3",  "B3",  "住所",                     "〒100-0001 東京都千代田区○○1-2-3"),
+        ("A4",  "B4",  "TEL",                      "03-0000-0000"),
+        ("A5",  "B5",  "振込先情報",                "○○銀行 △△支店 普通 1234567 カ）サンプル"),
+        ("A6",  "B6",  "支払期限（日数）",           30),
+        ("A7",  "B7",  "請求書番号プレフィックス",   "INV"),
+        ("A8",  "B8",  "テンプレートファイルパス",   "請求書テンプレート.xlsx"),
+        ("A9",  "B9",  "出力フォルダーパス",         "請求書出力"),
     ]
 
-    for a_cell, b_cell, label, value in rows:
-        ws[a_cell] = label
-        ws[a_cell].font = Font(bold=True, color="555555")
-        ws[a_cell].fill = SUBHEAD_FILL
-        ws[a_cell].border = thin_border()
-        ws[a_cell].alignment = Alignment(vertical="center")
+    for a_ref, b_ref, label, value in rows:
+        lc = ws[a_ref]
+        lc.value     = label
+        lc.font      = Font(bold=True, color="555555")
+        lc.fill      = SUBHEAD_FILL
+        lc.border    = thin_border()
+        lc.alignment = Alignment(vertical="center")
 
-        ws[b_cell] = value
-        ws[b_cell].border = thin_border()
-        ws[b_cell].alignment = Alignment(vertical="center", wrap_text=True)
+        vc = ws[b_ref]
+        vc.value     = value
+        vc.border    = thin_border()
+        vc.alignment = Alignment(vertical="center", wrap_text=True)
 
     ws["B6"].number_format = "0"
-    ws["B6"].alignment = Alignment(vertical="center", horizontal="left")
 
-    # ガイドテキスト
-    ws["A9"]  = "※ 支払期限（日数）: 請求日から何日後を支払期限とするか（例: 30 = 翌月末相当）"
-    ws["A9"].font  = GRAY
-    ws["A10"] = "※ 請求書番号プレフィックス: 請求書シート名の先頭文字列（例: INV → INV-0001）"
-    ws["A10"].font = GRAY
-    ws.merge_cells("A9:B9")
-    ws.merge_cells("A10:B10")
-
-    ws.sheet_view.showGridLines = True
+    # 注記
+    notes = [
+        "A11", "※ 支払期限（日数）: 請求日から何日後を支払期限とするか（例: 30）",
+        "A12", "※ テンプレートファイルパス: 相対パス可（BulkInvoiceTemplate.xlsx と同じフォルダー基準）",
+        "A13", "※ 出力フォルダーパス: 相対パス可。存在しない場合は自動作成されます",
+    ]
+    for i in range(0, len(notes), 2):
+        c = ws[notes[i]]
+        c.value = notes[i + 1]
+        c.font  = GRAY
+        ws.merge_cells(f"{notes[i]}:B{notes[i][1:]}")
 
 
 # ================================================================
-# 請求先リストシート
+# 管理ブック: 請求先リストシート
 # ================================================================
 def setup_list_sheet(ws):
     ws.title = "請求先リスト"
 
-    # タイトル
     ws["A1"] = "【請求先リスト】ここにデータを入力してください"
     ws["A1"].font = Font(bold=True, size=13, color="1A3A6B")
     ws.merge_cells("A1:U1")
 
-    # ヘッダー行
     headers = [
-        ("A2", "No.",    6),
-        ("B2", "取引先名", 20),
-        ("C2", "請求日",  13),
-        ("D2", "支払期限", 13),
-        ("E2", "品目1",   20),
-        ("F2", "数量1",    8),
-        ("G2", "単価1",   12),
-        ("H2", "品目2",   18),
-        ("I2", "数量2",    8),
-        ("J2", "単価2",   12),
-        ("K2", "品目3",   18),
-        ("L2", "数量3",    8),
-        ("M2", "単価3",   12),
-        ("N2", "品目4",   18),
-        ("O2", "数量4",    8),
-        ("P2", "単価4",   12),
-        ("Q2", "品目5",   18),
-        ("R2", "数量5",    8),
-        ("S2", "単価5",   12),
-        ("T2", "消費税率(%)", 12),
-        ("U2", "備考",    25),
+        ("A", "No.",         6),
+        ("B", "取引先名",    20),
+        ("C", "請求日",      13),
+        ("D", "支払期限",    13),
+        ("E", "品目1",       20),
+        ("F", "数量1",        8),
+        ("G", "単価1",       12),
+        ("H", "品目2",       18),
+        ("I", "数量2",        8),
+        ("J", "単価2",       12),
+        ("K", "品目3",       18),
+        ("L", "数量3",        8),
+        ("M", "単価3",       12),
+        ("N", "品目4",       18),
+        ("O", "数量4",        8),
+        ("P", "単価4",       12),
+        ("Q", "品目5",       18),
+        ("R", "数量5",        8),
+        ("S", "単価5",       12),
+        ("T", "消費税率(%)", 12),
+        ("U", "備考",        25),
     ]
 
-    for cell_ref, label, width in headers:
-        col_letter = cell_ref[0]
+    for col_letter, label, width in headers:
         ws.column_dimensions[col_letter].width = width
-
-        c = ws[cell_ref]
+        c = ws[f"{col_letter}2"]
         c.value     = label
         c.font      = WHITE
         c.fill      = HEADER_FILL
@@ -136,104 +133,89 @@ def setup_list_sheet(ws):
 
     ws.row_dimensions[2].height = 30
 
-    # サンプルデータ（3行）
+    numeric_cols = {6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 20}
+
+    # サンプルデータ
     samples = [
-        (1, "株式会社テスト商事",  "2026/1/31", "",          "システム開発費",   1,  500000, "保守費",         1, 50000, "", "", "", "", "", "", "", "", "", 10, ""),
-        (2, "有限会社サンプル工業", "2026/1/31", "2026/2/28", "製品A",           10,  15000, "製品B",          5, 20000, "送料", 1, 2000, "", "", "", "", "", "", 10, ""),
-        (3, "○○株式会社",         "2026/2/28", "",          "コンサルティング費", 1, 200000, "",              "", "",    "",     "", "", "", "", "", "", "", "", 10, "月次レポート含む"),
+        (1, "株式会社テスト商事",   "2026/1/31", "",           "システム開発費",    1,  500000, "保守費",   1, 50000, "", "", "", "", "", "", "", "", "", 10, ""),
+        (2, "有限会社サンプル工業", "2026/1/31", "2026/2/28",  "製品A",            10,   15000, "製品B",    5, 20000, "送料", 1, 2000, "", "", "", "", "", "", 10, ""),
+        (3, "○○株式会社",          "2026/2/28", "",           "コンサルティング費", 1,  200000, "",        "", "",     "",     "", "", "", "", "", "", "", "", 10, "月次レポート含む"),
     ]
 
     for row_idx, data in enumerate(samples, start=3):
-        fill = ODD_ROW_FILL if row_idx % 2 == 1 else PatternFill()
+        fill = ODD_FILL if row_idx % 2 == 1 else PatternFill()
         for col_idx, value in enumerate(data, start=1):
             c = ws.cell(row=row_idx, column=col_idx, value=value)
             c.border    = thin_border()
-            c.alignment = Alignment(vertical="center")
             c.fill      = fill
-
-            # 数値セル（単価・数量）のフォーマット
-            if col_index_is_numeric(col_idx):
+            if col_idx in numeric_cols:
                 c.number_format = NUM_FMT
                 c.alignment = Alignment(horizontal="right", vertical="center")
-
-        # 日付セルのフォーマット
+            else:
+                c.alignment = Alignment(vertical="center")
         ws.cell(row=row_idx, column=3).number_format = "yyyy/m/d"
         ws.cell(row=row_idx, column=4).number_format = "yyyy/m/d"
 
-    # 空行（入力用）を10行追加
+    # 空入力行（10行）
     for row_idx in range(len(samples) + 3, len(samples) + 13):
         for col_idx in range(1, 22):
             c = ws.cell(row=row_idx, column=col_idx)
             c.border = thin_border()
-            if col_index_is_numeric(col_idx):
+            if col_idx in numeric_cols:
                 c.number_format = NUM_FMT
 
-    # 列AA（27列目）= 生成済みシート名（マクロが自動入力）
-    ws.cell(row=2, column=27).value = "生成済みシート名"
-    ws.cell(row=2, column=27).font  = GRAY
-    ws.column_dimensions["AA"].width = 18
+    # AA列: 出力ファイルパス（マクロが記録）
+    c = ws.cell(row=2, column=27, value="出力ファイルパス")
+    c.font  = GRAY
+    ws.column_dimensions["AA"].width = 45
 
     ws.freeze_panes = "B3"
-    ws.sheet_view.showGridLines = True
-
-
-def col_index_is_numeric(col_idx):
-    """数量・単価列かどうか"""
-    numeric_cols = {6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 20}
-    return col_idx in numeric_cols
 
 
 # ================================================================
-# 請求書テンプレートシート
+# テンプレートファイル（請求書テンプレート.xlsx）
 # ================================================================
-def setup_template_sheet(ws):
-    ws.title = "請求書テンプレート"
+def create_invoice_template():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "請求書"
 
-    # 列幅設定
-    col_widths = {"A": 3, "B": 26, "C": 8, "D": 4, "E": 10, "F": 12, "G": 14, "H": 16}
-    for col, width in col_widths.items():
-        ws.column_dimensions[col].width = width
+    # 列幅
+    for col, w in [("A", 3), ("B", 26), ("C", 8), ("D", 4),
+                   ("E", 10), ("F", 12), ("G", 14), ("H", 16)]:
+        ws.column_dimensions[col].width = w
 
-    # 行高設定
-    for row in range(1, 30):
-        ws.row_dimensions[row].height = 18
+    # 行高
+    for r in range(1, 28):
+        ws.row_dimensions[r].height = 18
     ws.row_dimensions[6].height = 28
     ws.row_dimensions[9].height = 22
 
-    # --- 自社情報エリア（左上）---
-    ws["B2"] = "（会社名）"
-    ws["B2"].font = Font(bold=True, size=14, color="1A3A6B")
-
-    ws["B3"] = "（住所）"
-    ws["B3"].font = GRAY
-
-    ws["B4"] = "（TEL）"
-    ws["B4"].font = GRAY
+    # --- 自社情報（左上）---
+    ws["B2"].font      = Font(bold=True, size=14, color="1A3A6B")
+    ws["B3"].font      = GRAY
+    ws["B4"].font      = GRAY
 
     # --- 請求書タイトル（右上）---
     ws["G1"] = "請　求　書"
-    ws["G1"].font      = Font(bold=True, size=18, color="1A3A6B")
+    ws["G1"].font      = Font(bold=True, size=20, color="1A3A6B")
     ws["G1"].alignment = Alignment(horizontal="right", vertical="center")
     ws.merge_cells("G1:H1")
 
-    for cell_ref, label in (("G2", "請求書番号："), ("G3", "発行日："), ("G4", "支払期限：")):
-        c = ws[cell_ref]
-        c.value     = label
-        c.font      = Font(bold=True, color="555555")
-        c.alignment = Alignment(horizontal="right", vertical="center")
+    for ref, label in [("G2", "請求書番号："), ("G3", "発行日："), ("G4", "支払期限：")]:
+        ws[ref].value     = label
+        ws[ref].font      = Font(bold=True, color="555555")
+        ws[ref].alignment = Alignment(horizontal="right", vertical="center")
 
-    for cell_ref in ("H2", "H3", "H4"):
-        c = ws[cell_ref]
-        c.value     = "（自動入力）"
-        c.font      = GRAY
-        c.alignment = Alignment(horizontal="left", vertical="center")
+    for ref in ("H2", "H3", "H4"):
+        ws[ref].alignment = Alignment(horizontal="left", vertical="center")
 
-    # 区切り線
+    # 区切り線（行5）
     for col in range(1, 9):
-        ws.cell(row=5, column=col).border = Border(bottom=Side(style="medium", color="1A3A6B"))
+        ws.cell(row=5, column=col).border = Border(
+            bottom=Side(style="medium", color="1A3A6B"))
 
-    # --- 取引先・請求金額エリア ---
-    ws["B6"] = "（取引先名）御中"
+    # --- 取引先・合計金額（行6）---
     ws["B6"].font      = Font(bold=True, size=13)
     ws["B6"].alignment = Alignment(vertical="center")
     ws.merge_cells("B6:D6")
@@ -244,68 +226,67 @@ def setup_template_sheet(ws):
     ws["G6"].alignment = Alignment(horizontal="center", vertical="center")
     ws["G6"].border    = thin_border()
 
-    ws["H6"] = 0
-    ws["H6"].font         = Font(bold=True, size=14, color="1A3A6B")
-    ws["H6"].number_format = '¥#,##0－'
-    ws["H6"].alignment    = Alignment(horizontal="right", vertical="center")
-    ws["H6"].border       = thin_border()
+    ws["H6"].font          = Font(bold=True, size=14, color="1A3A6B")
+    ws["H6"].number_format = "¥#,##0－"
+    ws["H6"].alignment     = Alignment(horizontal="right", vertical="center")
+    ws["H6"].border        = thin_border()
 
     ws["B7"] = "下記のとおりご請求申し上げます。"
-    ws["B7"].font = Font(color="555555")
+    ws["B7"].font      = Font(color="555555")
     ws.merge_cells("B7:H7")
 
-    # 区切り線
+    # 区切り線（行8）
     for col in range(1, 9):
-        ws.cell(row=8, column=col).border = Border(bottom=Side(style="thin", color="AAAAAA"))
+        ws.cell(row=8, column=col).border = Border(
+            bottom=Side(style="thin", color="AAAAAA"))
 
-    # --- 品目ヘッダー ---
-    item_headers = [("B9", "品　目", 22), ("E9", "数量", 10), ("F9", "単価", 12), ("G9", "金額（税抜）", 14)]
-    for cell_ref, label, _ in item_headers:
-        c = ws[cell_ref]
+    # --- 品目ヘッダー（行9）---
+    for ref, label in [("B9", "品　目"), ("E9", "数量"), ("F9", "単価"), ("G9", "金額（税抜）")]:
+        c = ws[ref]
         c.value     = label
         c.font      = WHITE
         c.fill      = HEADER_FILL
         c.alignment = Alignment(horizontal="center", vertical="center")
         c.border    = thin_border()
-
+    ws["H9"].fill   = HEADER_FILL
+    ws["H9"].border = thin_border()
     ws.merge_cells("B9:D9")
+    ws.merge_cells("G9:H9")
 
-    # --- 品目行（10〜14行目）---
+    # --- 品目行（行10〜14）---
     for row in range(10, 15):
-        fill = ODD_ROW_FILL if row % 2 == 0 else PatternFill()
-
-        # 品目列（B〜D結合）
+        fill = ODD_FILL if row % 2 == 0 else PatternFill()
         for col in ("B", "C", "D"):
-            c = ws[f"{col}{row}"]
-            c.fill = fill
+            ws[f"{col}{row}"].fill = fill
         ws.merge_cells(f"B{row}:D{row}")
-        c = ws[f"B{row}"]
-        c.border    = thin_border()
-        c.alignment = Alignment(vertical="center")
+        ws[f"B{row}"].border    = thin_border()
+        ws[f"B{row}"].alignment = Alignment(vertical="center")
+        ws[f"B{row}"].fill      = fill
 
-        # 数量・単価・金額
-        for col_letter, fmt in (("E", NUM_FMT), ("F", NUM_FMT), ("G", NUM_FMT)):
-            c = ws[f"{col_letter}{row}"]
-            c.fill         = fill
+        for col, fmt in [("E", NUM_FMT), ("F", NUM_FMT), ("G", NUM_FMT)]:
+            c = ws[f"{col}{row}"]
+            c.fill          = fill
             c.number_format = fmt
-            c.alignment    = Alignment(horizontal="right", vertical="center")
-            c.border       = thin_border()
+            c.alignment     = Alignment(horizontal="right", vertical="center")
+            c.border        = thin_border()
+        ws[f"H{row}"].fill   = fill
+        ws[f"H{row}"].border = thin_border()
+        ws.merge_cells(f"G{row}:H{row}")
 
-    # --- 区切り ---
+    # 区切り線（行15）
     for col in range(1, 9):
         ws.cell(row=15, column=col).border = Border(
             bottom=Side(style="medium", color="1A3A6B"),
-            top=Side(style="thin")
-        )
+            top=Side(style="thin"))
 
-    # --- 集計エリア ---
-    summary_rows = [
-        (16, "小　計", "G16", NUM_FMT, False),
-        (17, "消費税（10%）", "G17", NUM_FMT, False),
-        (18, "合　計（税込）", "G18", NUM_FMT, True),
-    ]
-    for row, label, val_cell, fmt, is_total in summary_rows:
-        # ラベル
+    # --- 集計エリア（行16〜18）---
+    for row, label, val_ref, is_total in [
+        (16, "小　計",      "G16", False),
+        (17, "消費税（10%）", "G17", False),
+        (18, "合計（税込）",  "G18", True),
+    ]:
+        ws.row_dimensions[row].height = 22
+
         lc = ws[f"F{row}"]
         lc.value     = label
         lc.font      = WHITE if is_total else Font(bold=True, color="555555")
@@ -313,90 +294,109 @@ def setup_template_sheet(ws):
         lc.alignment = Alignment(horizontal="right", vertical="center")
         lc.border    = thin_border()
 
-        # 値
-        vc = ws[val_cell]
-        vc.value         = 0
+        vc = ws[val_ref]
         vc.font          = WHITE if is_total else Font(bold=True)
         vc.fill          = TOTAL_FILL if is_total else AMOUNT_FILL
-        vc.number_format = fmt
+        vc.number_format = NUM_FMT
         vc.alignment     = Alignment(horizontal="right", vertical="center")
         vc.border        = thin_border()
+        ws[f"H{row}"].fill   = TOTAL_FILL if is_total else AMOUNT_FILL
+        ws[f"H{row}"].border = thin_border()
+        ws.merge_cells(f"G{row}:H{row}")
 
-        ws.row_dimensions[row].height = 22
-
-    # --- 振込先 ---
+    # --- 振込先（行20〜21）---
     ws["B20"] = "【振込先】"
     ws["B20"].font = Font(bold=True, color="1A3A6B")
     ws.merge_cells("B20:H20")
-
-    ws["B21"] = "（振込先情報が自動入力されます）"
-    ws["B21"].font = GRAY
     ws.merge_cells("B21:H21")
+    ws["B21"].alignment = Alignment(vertical="center", wrap_text=True)
 
-    ws["B22"].border = Border(bottom=Side(style="thin", color="CCCCCC"))
-    ws.merge_cells("B22:H22")
+    ws.row_dimensions[22].height = 6
+    for col in range(2, 9):
+        ws.cell(row=22, column=col).border = Border(
+            bottom=Side(style="thin", color="CCCCCC"))
 
-    # --- 備考 ---
+    # --- 備考（行23〜24）---
     ws["B23"] = "【備考】"
     ws["B23"].font = Font(bold=True, color="1A3A6B")
     ws.merge_cells("B23:H23")
-
-    ws["B24"] = "（備考が自動入力されます）"
-    ws["B24"].font = GRAY
     ws.merge_cells("B24:H24")
-    ws.row_dimensions[24].height = 40
+    ws.row_dimensions[24].height = 45
     ws["B24"].alignment = Alignment(wrap_text=True, vertical="top")
 
     # 外枠
     for row in range(1, 25):
-        for col in (1, 8):
-            existing = ws.cell(row=row, column=col).border
-            ws.cell(row=row, column=col).border = Border(
-                left=Side(style="medium") if col == 1 else existing.left,
-                right=Side(style="medium") if col == 8 else existing.right,
-                top=existing.top,
-                bottom=existing.bottom,
-            )
+        left_cell  = ws.cell(row=row, column=1)
+        right_cell = ws.cell(row=row, column=8)
+        left_cell.border = Border(
+            left=Side(style="medium"),
+            right=left_cell.border.right,
+            top=left_cell.border.top,
+            bottom=left_cell.border.bottom,
+        )
+        right_cell.border = Border(
+            left=right_cell.border.left,
+            right=Side(style="medium"),
+            top=right_cell.border.top,
+            bottom=right_cell.border.bottom,
+        )
+    # 最上段・最下段
+    for col in range(1, 9):
+        c = ws.cell(row=1, column=col)
+        c.border = Border(
+            left=c.border.left, right=c.border.right,
+            top=Side(style="medium"), bottom=c.border.bottom)
+        c = ws.cell(row=24, column=col)
+        c.border = Border(
+            left=c.border.left, right=c.border.right,
+            top=c.border.top, bottom=Side(style="medium"))
 
     # 印刷設定
-    ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
-    ws.page_setup.paperSize   = ws.PAPERSIZE_A4
-    ws.page_setup.fitToPage   = True
-    ws.page_setup.fitToWidth  = 1
-    ws.page_setup.fitToHeight = 1
-    ws.print_area = "A1:H26"
+    ws.page_setup.orientation  = ws.ORIENTATION_PORTRAIT
+    ws.page_setup.paperSize    = ws.PAPERSIZE_A4
+    ws.page_setup.fitToPage    = True
+    ws.page_setup.fitToWidth   = 1
+    ws.page_setup.fitToHeight  = 1
+    ws.print_area               = "A1:H26"
     ws.sheet_view.showGridLines = False
 
+    output = "請求書テンプレート.xlsx"
+    wb.save(output)
+    return output
+
 
 # ================================================================
-# メイン処理
+# メイン
 # ================================================================
 def main():
+    # 1. 管理ブック（BulkInvoiceTemplate.xlsx）を生成
     wb = openpyxl.Workbook()
-
-    # シート作成
-    ws_setting  = wb.active
-    ws_list     = wb.create_sheet("請求先リスト")
-    ws_template = wb.create_sheet("請求書テンプレート")
+    ws_setting = wb.active
+    ws_list    = wb.create_sheet("請求先リスト")
 
     setup_setting_sheet(ws_setting)
     setup_list_sheet(ws_list)
-    setup_template_sheet(ws_template)
 
-    # 設定シートをアクティブに
     wb.active = ws_setting
+    wb.save("BulkInvoiceTemplate.xlsx")
+    print("✅ BulkInvoiceTemplate.xlsx を生成しました（設定・請求先リスト）")
 
-    output = "BulkInvoiceTemplate.xlsx"
-    wb.save(output)
-    print(f"✅ テンプレートファイルを作成しました: {output}")
+    # 2. 請求書テンプレートファイルを生成
+    tpl = create_invoice_template()
+    print(f"✅ {tpl} を生成しました（請求書のコピー元テンプレート）")
+
     print()
     print("【次の手順】")
     print("  1. BulkInvoiceTemplate.xlsx を Excel で開く")
-    print("  2. Alt+F11 でVBAエディタを開く")
-    print("  3. ファイル → ファイルのインポート → BulkInvoiceMacro.bas を選択")
-    print("  4. 「設定」シートに自社情報を入力")
-    print("  5. 「請求先リスト」シートに請求データを入力")
-    print("  6. Alt+F8 → 一括請求書作成 → 実行")
+    print("  2. Alt+F11 → ファイル → ファイルのインポート → BulkInvoiceMacro.bas")
+    print("  3. 「設定」シートを確認（独自テンプレートがある場合は B8 のパスを変更）")
+    print("  4. 「請求先リスト」シートに請求データを入力")
+    print("  5. Alt+F8 → 一括請求書作成 → 実行")
+    print()
+    print("  ※ 独自テンプレートを使う場合:")
+    print("     設定シート B8 に独自テンプレートのパスを入力してください")
+    print("     （例: C:\\Users\\user\\Documents\\my_invoice_template.xlsx）")
+    print("     VBA 定数 TPL_* を独自テンプレートのセル位置に合わせて変更してください")
 
 
 if __name__ == "__main__":
