@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>電子帳簿保存管理システム</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+      background: #f5f6fa;
+      color: #333;
+      min-height: 100vh;
+    }
+
+    /* ===== ヘッダー ===== */
+    header {
+      background: #1a3a6b;
+      color: #fff;
+      padding: 0 32px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+    header .user { font-size: 13px; opacity: .8; }
+
+    /* ===== メインコンテンツ ===== */
+    main { max-width: 1100px; margin: 32px auto; padding: 0 24px; }
+
+    /* ===== サマリーカード ===== */
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .card .label { font-size: 12px; color: #888; }
+    .card .value { font-size: 32px; font-weight: 700; }
+    .card.total .value  { color: #1a3a6b; }
+    .card.done .value   { color: #1e8c45; }
+    .card.undone .value { color: #c0392b; }
+
+    /* ===== フィルター・アクションバー ===== */
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .toolbar select,
+    .toolbar input[type="text"] {
+      padding: 8px 12px;
+      border: 1px solid #d0d5de;
+      border-radius: 6px;
+      font-size: 13px;
+      background: #fff;
+      outline: none;
+    }
+    .toolbar input[type="text"] { min-width: 220px; }
+    .toolbar select:focus,
+    .toolbar input[type="text"]:focus { border-color: #1a3a6b; }
+
+    /* ===== テーブル ===== */
+    .table-wrap {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead th {
+      background: #f0f2f8;
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 600;
+      color: #555;
+      border-bottom: 2px solid #e0e3ef;
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid #f0f2f8; transition: background .12s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f8f9fd; }
+    tbody td { padding: 14px 16px; vertical-align: middle; }
+
+    /* ===== バッジ（ファイル種別） ===== */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-invoice  { background: #e8f0fe; color: #1a56c4; }
+    .badge-order    { background: #fef3e2; color: #b45309; }
+    .badge-delivery { background: #e8f8f0; color: #1e7e45; }
+    .badge-receipt  { background: #f3e8fe; color: #7c3aed; }
+
+    /* ===== ステータスバッジ ===== */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-done {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .status-undone {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .status-processing {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .dot-done       { background: #10b981; }
+    .dot-undone     { background: #ef4444; }
+    .dot-processing { background: #f59e0b; animation: blink 1s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ===== ボタン ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:hover:not(:disabled) { opacity: .85; }
+    .btn:active:not(:disabled) { transform: scale(.97); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: #1a3a6b; color: #fff; }
+    .btn-success { background: #1e8c45; color: #fff; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    .saved-info { font-size: 12px; color: #555; }
+    .saved-date { font-size: 11px; color: #999; }
+
+    /* ===== モーダル ===== */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 32px;
+      width: 480px;
+      max-width: 95vw;
+      box-shadow: 0 8px 32px rgba(0,0,0,.2);
+      position: relative;
+    }
+    .modal h2 { font-size: 17px; margin-bottom: 4px; color: #1a3a6b; }
+    .modal .doc-name {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #eee;
+    }
+    .close-btn {
+      position: absolute;
+      top: 16px; right: 16px;
+      background: none; border: none;
+      font-size: 20px; cursor: pointer; color: #999;
+      line-height: 1;
+    }
+    .close-btn:hover { color: #333; }
+
+    /* ===== ドロップゾーン ===== */
+    .drop-zone {
+      border: 2px dashed #c5cae9;
+      border-radius: 8px;
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      margin-bottom: 16px;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #1a3a6b;
+      background: #f0f4ff;
+    }
+    .drop-zone .icon { font-size: 36px; margin-bottom: 8px; }
+    .drop-zone .hint { font-size: 13px; color: #888; margin-top: 6px; }
+    .drop-zone .selected-file {
+      margin-top: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a3a6b;
+    }
+
+    /* ===== 処理ログ ===== */
+    .process-log {
+      display: none;
+      background: #1e1e2e;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #cdd6f4;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .process-log.show { display: block; }
+    .log-line { line-height: 1.8; }
+    .log-ok   { color: #a6e3a1; }
+    .log-err  { color: #f38ba8; }
+    .log-info { color: #89dceb; }
+    .log-wait { color: #f9e2af; }
+
+    /* ===== 完了バナー ===== */
+    .success-banner {
+      display: none;
+      background: #d1fae5;
+      border: 1px solid #6ee7b7;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #065f46;
+      font-weight: 600;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .success-banner.show { display: block; }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📂 電子帳簿保存管理システム</h1>
+  <span class="user">管理者：山田 太郎</span>
+</header>
+
+<main>
+  <!-- サマリーカード -->
+  <div class="summary">
+    <div class="card total">
+      <span class="label">対象ファイル数</span>
+      <span class="value" id="totalCount">0</span>
+    </div>
+    <div class="card done">
+      <span class="label">保存済み</span>
+      <span class="value" id="doneCount">0</span>
+    </div>
+    <div class="card undone">
+      <span class="label">未保存</span>
+      <span class="value" id="undoneCount">0</span>
+    </div>
+  </div>
+
+  <!-- フィルターバー -->
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="🔍  ファイル名・取引先で検索..." oninput="applyFilter()" />
+    <select id="typeFilter" onchange="applyFilter()">
+      <option value="">すべての種別</option>
+      <option value="請求書">請求書</option>
+      <option value="発注書">発注書</option>
+      <option value="納品書">納品書</option>
+      <option value="領収書">領収書</option>
+    </select>
+    <select id="statusFilter" onchange="applyFilter()">
+      <option value="">すべてのステータス</option>
+      <option value="未保存">未保存</option>
+      <option value="保存済み">保存済み</option>
+    </select>
+  </div>
+
+  <!-- ファイル一覧テーブル -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ファイル名</th>
+          <th>種別</th>
+          <th>取引先</th>
+          <th>書類日付</th>
+          <th>金額（税込）</th>
+          <th>ステータス</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="fileTableBody"></tbody>
+    </table>
+  </div>
+</main>
+
+<!-- PDF添付モーダル -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <button class="close-btn" onclick="closeModal()">✕</button>
+    <h2>PDF を添付して電子帳簿保存</h2>
+    <div class="doc-name" id="modalDocName"></div>
+
+    <!-- ドロップゾーン -->
+    <div class="drop-zone" id="dropZone"
+         onclick="document.getElementById('fileInput').click()"
+         ondragover="onDragOver(event)"
+         ondragleave="onDragLeave(event)"
+         ondrop="onDrop(event)">
+      <div class="icon">📄</div>
+      <div>PDF ファイルをここにドロップ<br>またはクリックして選択</div>
+      <div class="hint">対応形式: PDF（最大 50MB）</div>
+      <div class="selected-file" id="selectedFileName"></div>
+    </div>
+    <input type="file" id="fileInput" accept=".pdf" style="display:none" onchange="onFileSelect(event)" />
+
+    <!-- 処理ログ -->
+    <div class="process-log" id="processLog"></div>
+
+    <!-- 完了バナー -->
+    <div class="success-banner" id="successBanner">
+      ✅ 電子帳簿保存が完了しました
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" id="cancelBtn" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" id="submitBtn" disabled onclick="startProcess()">
+        保存を実行
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== サンプルデータ =====
+  const files = [
+    { id:1, name:"INV-2024-0601.pdf",    type:"請求書", counterparty:"株式会社アルファ",   date:"2024-06-01", amount:330000,  status:"保存済み", savedAt:"2024-06-03", pdfName:"INV-2024-0601_signed.pdf" },
+    { id:2, name:"PO-2024-0605.xlsx",    type:"発注書", counterparty:"ベータ商事株式会社", date:"2024-06-05", amount:154000,  status:"未保存",   savedAt:null,        pdfName:null },
+    { id:3, name:"DN-2024-0610.csv",     type:"納品書", counterparty:"株式会社ガンマ",     date:"2024-06-10", amount:88000,   status:"未保存",   savedAt:null,        pdfName:null },
+    { id:4, name:"REC-2024-0612.jpg",    type:"領収書", counterparty:"デルタ物産",         date:"2024-06-12", amount:12800,   status:"保存済み", savedAt:"2024-06-12", pdfName:"REC-2024-0612.pdf" },
+    { id:5, name:"INV-2024-0615.pdf",    type:"請求書", counterparty:"イプシロン株式会社", date:"2024-06-15", amount:550000,  status:"未保存",   savedAt:null,        pdfName:null },
+    { id:6, name:"PO-2024-0618.docx",    type:"発注書", counterparty:"株式会社ゼータ",     date:"2024-06-18", amount:220000,  status:"未保存",   savedAt:null,        pdfName:null },
+    { id:7, name:"DN-2024-0620.xlsx",    type:"納品書", counterparty:"イータ工業株式会社", date:"2024-06-20", amount:176000,  status:"保存済み", savedAt:"2024-06-21", pdfName:"DN-2024-0620.pdf" },
+    { id:8, name:"INV-2024-0622.pdf",    type:"請求書", counterparty:"シータ商事",         date:"2024-06-22", amount:98000,   status:"未保存",   savedAt:null,        pdfName:null },
+    { id:9, name:"REC-2024-0624.png",    type:"領収書", counterparty:"イオタ交通",         date:"2024-06-24", amount:3200,    status:"未保存",   savedAt:null,        pdfName:null },
+    { id:10,name:"PO-2024-0625.pdf",     type:"発注書", counterparty:"株式会社カッパ",     date:"2024-06-25", amount:410000,  status:"保存済み", savedAt:"2024-06-25", pdfName:"PO-2024-0625_signed.pdf" },
+  ];
+
+  let currentFileId = null;
+  let selectedFile  = null;
+
+  // ===== 初期描画 =====
+  function renderTable(data) {
+    const tbody = document.getElementById("fileTableBody");
+    tbody.innerHTML = data.map(f => `
+      <tr id="row-${f.id}">
+        <td><span style="font-weight:600">${f.name}</span></td>
+        <td>${typeBadge(f.type)}</td>
+        <td>${f.counterparty}</td>
+        <td>${f.date}</td>
+        <td style="text-align:right">¥${f.amount.toLocaleString()}</td>
+        <td>${statusBadge(f.status)}</td>
+        <td>${actionCell(f)}</td>
+      </tr>
+    `).join("");
+    updateSummary();
+  }
+
+  function typeBadge(type) {
+    const cls = { 請求書:"badge-invoice", 発注書:"badge-order", 納品書:"badge-delivery", 領収書:"badge-receipt" }[type] || "";
+    return `<span class="badge ${cls}">${type}</span>`;
+  }
+
+  function statusBadge(status) {
+    if (status === "保存済み")
+      return `<span class="status status-done"><span class="dot dot-done"></span>保存済み</span>`;
+    if (status === "処理中")
+      return `<span class="status status-processing"><span class="dot dot-processing"></span>処理中...</span>`;
+    return `<span class="status status-undone"><span class="dot dot-undone"></span>未保存</span>`;
+  }
+
+  function actionCell(f) {
+    if (f.status === "保存済み") {
+      return `<div class="saved-info">
+        <div>📎 ${f.pdfName}</div>
+        <div class="saved-date">保存日: ${f.savedAt}</div>
+      </div>`;
+    }
+    if (f.status === "処理中") {
+      return `<button class="btn btn-sm" disabled>処理中...</button>`;
+    }
+    return `<button class="btn btn-primary btn-sm" onclick="openModal(${f.id})">📎 PDF を添付</button>`;
+  }
+
+  function updateSummary() {
+    const total  = files.length;
+    const done   = files.filter(f => f.status === "保存済み").length;
+    const undone = files.filter(f => f.status !== "保存済み").length;
+    document.getElementById("totalCount").textContent  = total;
+    document.getElementById("doneCount").textContent   = done;
+    document.getElementById("undoneCount").textContent = undone;
+  }
+
+  // ===== フィルター =====
+  function applyFilter() {
+    const kw     = document.getElementById("searchInput").value.toLowerCase();
+    const type   = document.getElementById("typeFilter").value;
+    const status = document.getElementById("statusFilter").value;
+    const filtered = files.filter(f =>
+      (!kw     || f.name.toLowerCase().includes(kw) || f.counterparty.toLowerCase().includes(kw)) &&
+      (!type   || f.type === type) &&
+      (!status || f.status === status)
+    );
+    renderTable(filtered);
+  }
+
+  // ===== モーダル =====
+  function openModal(id) {
+    currentFileId = id;
+    selectedFile  = null;
+    const f = files.find(x => x.id === id);
+    document.getElementById("modalDocName").textContent = f.name + "　（" + f.counterparty + "）";
+    document.getElementById("selectedFileName").textContent = "";
+    document.getElementById("processLog").className   = "process-log";
+    document.getElementById("processLog").innerHTML   = "";
+    document.getElementById("successBanner").className= "success-banner";
+    document.getElementById("submitBtn").disabled     = true;
+    document.getElementById("cancelBtn").textContent  = "キャンセル";
+    document.getElementById("dropZone").style.display = "";
+    document.getElementById("fileInput").value        = "";
+    document.getElementById("overlay").classList.add("open");
+  }
+
+  function closeModal() {
+    document.getElementById("overlay").classList.remove("open");
+    currentFileId = null;
+    selectedFile  = null;
+  }
+
+  // ===== ドラッグ＆ドロップ =====
+  function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add("drag-over"); }
+  function onDragLeave(e) { e.currentTarget.classList.remove("drag-over"); }
+  function onDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove("drag-over");
+    const dt = e.dataTransfer;
+    if (dt.files.length > 0) handleFile(dt.files[0]);
+  }
+  function onFileSelect(e) { if (e.target.files.length > 0) handleFile(e.target.files[0]); }
+
+  function handleFile(file) {
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      alert("PDF ファイルを選択してください。");
+      return;
+    }
+    selectedFile = file;
+    document.getElementById("selectedFileName").textContent = "✔ " + file.name;
+    document.getElementById("submitBtn").disabled = false;
+  }
+
+  // ===== 処理実行（モック）=====
+  async function startProcess() {
+    if (!selectedFile) return;
+    const f = files.find(x => x.id === currentFileId);
+
+    // UI を処理中状態へ
+    document.getElementById("submitBtn").disabled    = true;
+    document.getElementById("cancelBtn").disabled    = true;
+    document.getElementById("dropZone").style.display= "none";
+    const log = document.getElementById("processLog");
+    log.className = "process-log show";
+    log.innerHTML = "";
+
+    // 行を「処理中」に更新
+    f.status = "処理中";
+    applyFilter();
+
+    function addLog(msg, cls="log-info") {
+      log.innerHTML += `<div class="log-line ${cls}">${msg}</div>`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    await wait(500);
+    addLog("▶  処理を開始します...", "log-info");
+    await wait(600);
+    addLog(`📂  ファイル確認: ${selectedFile.name} (${(selectedFile.size/1024).toFixed(1)} KB)`, "log-info");
+    await wait(800);
+    addLog("📤  [1/2] サーバーへのファイル保存 — 送信中...", "log-wait");
+    await wait(1400);
+    addLog("✅  [1/2] サーバーへのファイル保存 — 完了", "log-ok");
+    await wait(500);
+    addLog("📧  [2/2] メール通知 — 送信中...（宛先: keiri@example.co.jp）", "log-wait");
+    await wait(1200);
+    addLog("✅  [2/2] メール通知 — 送信完了", "log-ok");
+    await wait(400);
+    addLog("🎉  電子帳簿保存が完了しました", "log-ok");
+
+    // データ更新
+    const today = new Date().toISOString().slice(0, 10);
+    f.status  = "保存済み";
+    f.savedAt = today;
+    f.pdfName = selectedFile.name;
+
+    // 完了バナー
+    document.getElementById("successBanner").className = "success-banner show";
+    document.getElementById("cancelBtn").disabled  = false;
+    document.getElementById("cancelBtn").textContent = "閉じる";
+
+    // テーブル更新
+    updateSummary();
+    applyFilter();
+  }
+
+  function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // ===== 初期描画 =====
+  renderTable(files);
+</script>
+</body>
+</html>
