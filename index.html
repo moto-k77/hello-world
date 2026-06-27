@@ -257,6 +257,16 @@
     .saved-info { font-size: 11px; color: #555; line-height: 1.7; }
     .saved-date { font-size: 10px; color: #999; }
 
+    /* ===== PDFタグ一覧（テーブル内） ===== */
+    .pdf-chips { display: flex; flex-direction: column; gap: 2px; }
+    .pdf-chip  { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #555; }
+    .pdf-count-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #e0e7ff; color: #3730a3;
+      border-radius: 10px; font-size: 10px; font-weight: 700;
+      padding: 1px 6px; white-space: nowrap;
+    }
+
     /* ===== モーダル共通 ===== */
     .overlay {
       display: none; position: fixed; inset: 0;
@@ -305,11 +315,41 @@
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 400px) { .form-row { grid-template-columns: 1fr; } }
 
+    /* ===== 編集モーダル内PDFリスト ===== */
+    .pdf-list-box {
+      border: 1px solid #e0e3ef; border-radius: 7px;
+      padding: 10px 12px; background: #f9fafb;
+      min-height: 44px;
+    }
+    .pdf-list-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 0; border-bottom: 1px solid #f0f2f8;
+      font-size: 12px; color: #555;
+    }
+    .pdf-list-row:last-child { border-bottom: none; }
+    .pdf-list-row .pdf-name { flex: 1; word-break: break-all; }
+    .pdf-list-row .pdf-date { color: #aaa; white-space: nowrap; font-size: 11px; }
+    .pdf-empty { font-size: 12px; color: #aaa; text-align: center; padding: 8px 0; }
+    .pdf-add-btn {
+      margin-top: 8px; width: 100%;
+    }
+
     /* ===== PDFモーダル ===== */
     .doc-meta {
       font-size: 12px; color: #666; margin-bottom: 14px;
       padding-bottom: 12px; border-bottom: 1px solid #eee;
       display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    }
+    .existing-pdfs-section {
+      background: #f0f4ff; border: 1px solid #c7d2fe;
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;
+    }
+    .existing-pdfs-section .section-label {
+      font-size: 11px; font-weight: 700; color: #4338ca; margin-bottom: 8px;
+    }
+    .existing-pdf-row {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: #374151; padding: 3px 0;
     }
     .drop-zone {
       border: 2px dashed #c5cae9; border-radius: 8px;
@@ -498,6 +538,12 @@
         <input type="number" class="form-control" id="edit-amount" placeholder="例: 110000" min="0" />
       </div>
     </div>
+    <!-- 添付PDFセクション -->
+    <div class="form-group">
+      <label>添付PDF</label>
+      <div class="pdf-list-box" id="edit-pdf-list"></div>
+      <button class="btn btn-outline btn-sm pdf-add-btn" onclick="openPdfFromEdit()">📎 PDFを追加</button>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeEditModal()">キャンセル</button>
       <button class="btn btn-primary" onclick="submitEdit()">保存する</button>
@@ -556,8 +602,13 @@
   <div class="modal">
     <div class="modal-handle"></div>
     <button class="close-btn" onclick="closePdfModal()">✕</button>
-    <h2>📎 PDF を添付して電子帳簿保存</h2>
+    <h2 id="pdfModalTitle">📎 PDF を添付して電子帳簿保存</h2>
     <div class="doc-meta" id="pdfDocMeta"></div>
+    <!-- 既存PDF表示 -->
+    <div class="existing-pdfs-section" id="existingPdfsSection" style="display:none">
+      <div class="section-label">📋 現在の添付PDF</div>
+      <div id="existingPdfsList"></div>
+    </div>
     <div class="drop-zone" id="dropZone"
          onclick="document.getElementById('fileInput').click()"
          ondragover="onDragOver(event)"
@@ -623,17 +674,18 @@
 
   /* ===== データ ===== */
   let nextId = 11;
+  // pdfs: [{name, savedAt}] の配列で複数PDF管理
   const files = [
-    { id:1,  category:"販売",  type:"見積書", name:"EST-S-2024-0601.xlsx", counterparty:"株式会社アルファ",   date:"2024-06-01", amount:385000, status:"保存済み", savedAt:"2024-06-02", pdfName:"EST-S-2024-0601.pdf", source:null, deleted:false },
-    { id:2,  category:"販売",  type:"注文書", name:"ORD-2024-0605.pdf",    counterparty:"ベータ商事株式会社", date:"2024-06-05", amount:220000, status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
-    { id:3,  category:"販売",  type:"納品書", name:"DN-S-2024-0610.xlsx",  counterparty:"株式会社ガンマ",     date:"2024-06-10", amount:220000, status:"保存済み", savedAt:"2024-06-11", pdfName:"DN-S-2024-0610.pdf", source:null, deleted:false },
-    { id:4,  category:"販売",  type:"請求書", name:"INV-S-2024-0615.pdf",  counterparty:"デルタ工業株式会社", date:"2024-06-15", amount:242000, status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
-    { id:5,  category:"販売",  type:"その他", name:"CONTRACT-2024-0618.docx", counterparty:"イプシロン株式会社", date:"2024-06-18", amount:null, status:"未保存", savedAt:null, pdfName:null, source:null, deleted:false },
-    { id:6,  category:"仕入れ", type:"見積書", name:"EST-P-2024-0602.pdf",  counterparty:"ゼータ物産株式会社", date:"2024-06-02", amount:148500, status:"保存済み", savedAt:"2024-06-03", pdfName:"EST-P-2024-0602.pdf", source:null, deleted:false },
-    { id:7,  category:"仕入れ", type:"発注書", name:"PO-2024-0607.xlsx",    counterparty:"エータ商事",         date:"2024-06-07", amount:162800, status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
-    { id:8,  category:"仕入れ", type:"納品書", name:"DN-P-2024-0612.csv",   counterparty:"シータ工業株式会社", date:"2024-06-12", amount:162800, status:"保存済み", savedAt:"2024-06-13", pdfName:"DN-P-2024-0612.pdf", source:null, deleted:false },
-    { id:9,  category:"仕入れ", type:"請求書", name:"INV-P-2024-0620.pdf",  counterparty:"イオタ株式会社",     date:"2024-06-20", amount:178200, status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
-    { id:10, category:"仕入れ", type:"その他", name:"AGREEMENT-2024-0622.docx", counterparty:"カッパ商店",    date:"2024-06-22", amount:null,   status:"未保存",   savedAt:null, pdfName:null, source:null, deleted:false },
+    { id:1,  category:"販売",  type:"見積書", name:"EST-S-2024-0601.xlsx", counterparty:"株式会社アルファ",   date:"2024-06-01", amount:385000, status:"保存済み", savedAt:"2024-06-02", pdfs:[{name:"EST-S-2024-0601.pdf", savedAt:"2024-06-02"}], source:null, deleted:false },
+    { id:2,  category:"販売",  type:"注文書", name:"ORD-2024-0605.pdf",    counterparty:"ベータ商事株式会社", date:"2024-06-05", amount:220000, status:"未保存",   savedAt:null, pdfs:[], source:null, deleted:false },
+    { id:3,  category:"販売",  type:"納品書", name:"DN-S-2024-0610.xlsx",  counterparty:"株式会社ガンマ",     date:"2024-06-10", amount:220000, status:"保存済み", savedAt:"2024-06-11", pdfs:[{name:"DN-S-2024-0610.pdf", savedAt:"2024-06-11"},{name:"DN-S-2024-0610_2.pdf", savedAt:"2024-06-12"}], source:null, deleted:false },
+    { id:4,  category:"販売",  type:"請求書", name:"INV-S-2024-0615.pdf",  counterparty:"デルタ工業株式会社", date:"2024-06-15", amount:242000, status:"未保存",   savedAt:null, pdfs:[], source:null, deleted:false },
+    { id:5,  category:"販売",  type:"その他", name:"CONTRACT-2024-0618.docx", counterparty:"イプシロン株式会社", date:"2024-06-18", amount:null, status:"未保存", savedAt:null, pdfs:[], source:null, deleted:false },
+    { id:6,  category:"仕入れ", type:"見積書", name:"EST-P-2024-0602.pdf",  counterparty:"ゼータ物産株式会社", date:"2024-06-02", amount:148500, status:"保存済み", savedAt:"2024-06-03", pdfs:[{name:"EST-P-2024-0602.pdf", savedAt:"2024-06-03"}], source:null, deleted:false },
+    { id:7,  category:"仕入れ", type:"発注書", name:"PO-2024-0607.xlsx",    counterparty:"エータ商事",         date:"2024-06-07", amount:162800, status:"未保存",   savedAt:null, pdfs:[], source:null, deleted:false },
+    { id:8,  category:"仕入れ", type:"納品書", name:"DN-P-2024-0612.csv",   counterparty:"シータ工業株式会社", date:"2024-06-12", amount:162800, status:"保存済み", savedAt:"2024-06-13", pdfs:[{name:"DN-P-2024-0612.pdf", savedAt:"2024-06-13"}], source:null, deleted:false },
+    { id:9,  category:"仕入れ", type:"請求書", name:"INV-P-2024-0620.pdf",  counterparty:"イオタ株式会社",     date:"2024-06-20", amount:178200, status:"未保存",   savedAt:null, pdfs:[], source:null, deleted:false },
+    { id:10, category:"仕入れ", type:"その他", name:"AGREEMENT-2024-0622.docx", counterparty:"カッパ商店",    date:"2024-06-22", amount:null,   status:"未保存",   savedAt:null, pdfs:[], source:null, deleted:false },
   ];
 
   let folders = [
@@ -642,14 +694,15 @@
   ];
   let nextFolderId = 3;
 
-  let activeTab     = "販売";
-  let sortCol       = "date";
-  let sortDir       = "desc";
-  let showDeleted   = false;
-  let editTargetId  = null;
+  let activeTab      = "販売";
+  let sortCol        = "date";
+  let sortDir        = "desc";
+  let showDeleted    = false;
+  let editTargetId   = null;
   let deleteTargetId = null;
-  let currentFileId = null;
-  let selectedFile  = null;
+  let currentFileId  = null;
+  let selectedFile   = null;
+  let pdfOpenedFromEdit = false;
 
   /* ===== タブ切り替え ===== */
   function switchTab(cat) {
@@ -716,23 +769,19 @@
     const tabFiles = files.filter(f => f.category === activeTab);
     const delCount = tabFiles.filter(f => f.deleted).length;
 
-    // 件数バー：削除済みを除いた全件
     const activeFiles = tabFiles.filter(f => !f.deleted);
     document.getElementById("totalCount").textContent  = activeFiles.length;
     document.getElementById("doneCount").textContent   = activeFiles.filter(f => f.status === "保存済み").length;
     document.getElementById("undoneCount").textContent = activeFiles.filter(f => f.status !== "保存済み").length;
 
-    // 削除済みリンク
     const wrap = document.getElementById("deletedCountWrap");
     wrap.style.display = delCount > 0 ? "" : "none";
     document.getElementById("deletedCount").textContent = delCount;
     document.getElementById("deletedToggleLabel").textContent = showDeleted ? "（非表示にする）" : "（表示する）";
 
-    // タブカウント（削除済み除く）
     document.getElementById("tab-count-sales").textContent    = files.filter(f => f.category==="販売"  && !f.deleted).length;
     document.getElementById("tab-count-purchase").textContent = files.filter(f => f.category==="仕入れ" && !f.deleted).length;
 
-    // フィルター適用
     let filtered = tabFiles.filter(f => {
       if (f.deleted && !showDeleted) return false;
       if (kw   && !f.name.toLowerCase().includes(kw) && !f.counterparty.toLowerCase().includes(kw)) return false;
@@ -768,13 +817,23 @@
     `).join("");
   }
 
+  function pdfChips(f) {
+    if (!f.pdfs.length) return `<span style="color:#aaa;font-size:11px">なし</span>`;
+    if (f.pdfs.length === 1)
+      return `<div class="pdf-chip">📎 <span>${f.pdfs[0].name}</span></div>`;
+    return `<div class="pdf-chip">📎 <span>${f.pdfs[0].name}</span></div>
+            <div class="pdf-chip" style="color:#aaa">＋他 ${f.pdfs.length-1}件 <span class="pdf-count-badge">${f.pdfs.length}件</span></div>`;
+  }
+
   function tableAction(f) {
     if (f.deleted)
       return `<button class="btn btn-restore btn-sm" onclick="restoreFile(${f.id})">↩ 復元</button>`;
     if (f.status === "保存済み")
-      return `<div style="display:flex;gap:6px;align-items:center">
-        <div class="saved-info"><div>📎 ${f.pdfName}</div><div class="saved-date">${f.savedAt}</div></div>
-        <button class="btn btn-ghost btn-sm" onclick="openEditModal(${f.id})">✏️</button>
+      return `<div style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap">
+        <div class="saved-info pdf-chips">${pdfChips(f)}<div class="saved-date">${f.savedAt}</div></div>
+        <button class="btn btn-outline btn-sm" onclick="openPdfModal(${f.id})">📎 追加</button>
+        <button class="btn btn-ghost   btn-sm" onclick="openEditModal(${f.id})">✏️</button>
+        <button class="btn btn-danger  btn-sm" onclick="openDeleteModal(${f.id})">🗑️</button>
       </div>`;
     if (f.status === "処理中")
       return `<button class="btn btn-sm" disabled>処理中...</button>`;
@@ -795,6 +854,13 @@
       const sc = f.deleted ? "deleted-card" :
                  f.status === "保存済み" ? "status-done" :
                  f.status === "処理中"   ? "status-processing" : "status-undone";
+      const pdfMeta = f.status === "保存済み" && !f.deleted
+        ? `<span class="meta-label">PDF</span><span style="font-size:11px">
+            ${f.pdfs.length === 0
+              ? '<span style="color:#aaa">なし</span>'
+              : f.pdfs.map(p => `📎 ${p.name} <span style="color:#aaa">(${p.savedAt})</span>`).join("<br>")}
+           </span>`
+        : "";
       return `
         <div class="file-card ${sc}" id="card-${f.id}">
           <div class="file-card-inner">
@@ -810,7 +876,7 @@
               <span class="meta-label">取引先</span><span>${f.counterparty}</span>
               <span class="meta-label">日付</span><span>${f.date}</span>
               <span class="meta-label">金額</span><span>${f.amount != null ? "¥" + f.amount.toLocaleString() : "—"}</span>
-              ${f.status === "保存済み" && !f.deleted ? `<span class="meta-label">PDF</span><span style="font-size:11px">📎 ${f.pdfName}（${f.savedAt}）</span>` : ""}
+              ${pdfMeta}
             </div>
             <div class="file-card-footer">${cardAction(f)}</div>
           </div>
@@ -821,13 +887,14 @@
   function cardAction(f) {
     if (f.deleted)
       return `<button class="btn btn-restore btn-sm" onclick="restoreFile(${f.id})">↩ 復元</button>`;
-    if (f.status === "保存済み")
-      return `<button class="btn btn-ghost btn-sm" onclick="openEditModal(${f.id})">✏️ 編集</button>`;
     if (f.status === "処理中")
       return `<button class="btn btn-sm" disabled>処理中...</button>`;
-    return `<div style="display:flex;gap:6px">
-      <button class="btn btn-primary btn-sm" onclick="openPdfModal(${f.id})">📎 PDF添付</button>
-      <button class="btn btn-ghost   btn-sm" onclick="openEditModal(${f.id})">✏️</button>
+    const pdfBtn = f.status === "保存済み"
+      ? `<button class="btn btn-outline btn-sm" onclick="openPdfModal(${f.id})">📎 PDF追加</button>`
+      : `<button class="btn btn-primary btn-sm" onclick="openPdfModal(${f.id})">📎 PDF添付</button>`;
+    return `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      ${pdfBtn}
+      <button class="btn btn-ghost   btn-sm" onclick="openEditModal(${f.id})">✏️ 編集</button>
       <button class="btn btn-danger  btn-sm" onclick="openDeleteModal(${f.id})">🗑️</button>
     </div>`;
   }
@@ -873,6 +940,7 @@
     document.getElementById("edit-counterparty").value = f.counterparty;
     document.getElementById("edit-date").value        = f.date;
     document.getElementById("edit-amount").value      = f.amount ?? "";
+    renderEditPdfList(f);
     document.getElementById("editOverlay").classList.add("open");
   }
   function closeEditModal() {
@@ -890,6 +958,40 @@
     closeEditModal();
     applyFilter();
     showToast("✅ 情報を更新しました");
+  }
+
+  function renderEditPdfList(f) {
+    const el = document.getElementById("edit-pdf-list");
+    if (!f.pdfs.length) {
+      el.innerHTML = `<div class="pdf-empty">添付PDFなし</div>`;
+      return;
+    }
+    el.innerHTML = f.pdfs.map((p, i) => `
+      <div class="pdf-list-row">
+        <span class="pdf-name">📎 ${p.name}</span>
+        <span class="pdf-date">${p.savedAt}</span>
+        <button class="btn btn-danger btn-sm" onclick="removePdf(${f.id}, ${i})">削除</button>
+      </div>`).join("");
+  }
+
+  function removePdf(fileId, idx) {
+    const f = files.find(x => x.id === fileId);
+    if (!f) return;
+    f.pdfs.splice(idx, 1);
+    if (f.pdfs.length === 0 && f.status === "保存済み") {
+      f.status  = "未保存";
+      f.savedAt = null;
+    }
+    renderEditPdfList(f);
+    applyFilter();
+    showToast("🗑️ PDFを削除しました");
+  }
+
+  function openPdfFromEdit() {
+    const id = editTargetId;
+    closeEditModal();
+    pdfOpenedFromEdit = true;
+    openPdfModal(id);
   }
 
   /* ===== フォルダー設定 ===== */
@@ -1019,7 +1121,7 @@
         name: `${prefix}-2024-${mm}${num}${ext}`,
         counterparty: "（未設定）",
         date: today(), amount: null,
-        status: "未保存", savedAt: null, pdfName: null,
+        status: "未保存", savedAt: null, pdfs: [],
         source: folder.label, deleted: false,
       };
     });
@@ -1029,10 +1131,29 @@
   function openPdfModal(id) {
     currentFileId = id; selectedFile = null;
     const f = files.find(x => x.id === id);
+
+    // タイトル切り替え
+    document.getElementById("pdfModalTitle").textContent =
+      f.pdfs.length > 0 ? "📎 PDF を追加" : "📎 PDF を添付して電子帳簿保存";
+
     document.getElementById("pdfDocMeta").innerHTML =
       `${catBadge(f.category)} ${typeBadge(f.category, f.type)}
        <span style="font-weight:600;color:#333">${f.name}</span>
        <span style="color:#ccc">／</span><span>${f.counterparty}</span>`;
+
+    // 既存PDF表示
+    const existingSection = document.getElementById("existingPdfsSection");
+    const existingList    = document.getElementById("existingPdfsList");
+    if (f.pdfs.length > 0) {
+      existingSection.style.display = "";
+      existingList.innerHTML = f.pdfs.map(p =>
+        `<div class="existing-pdf-row">📎 <span>${p.name}</span> <span style="color:#aaa">${p.savedAt}</span></div>`
+      ).join("");
+    } else {
+      existingSection.style.display = "none";
+      existingList.innerHTML = "";
+    }
+
     document.getElementById("selectedFileName").textContent = "";
     document.getElementById("processLog").className    = "process-log";
     document.getElementById("processLog").innerHTML    = "";
@@ -1045,8 +1166,12 @@
     document.getElementById("pdfOverlay").classList.add("open");
   }
   function closePdfModal() {
+    const wasFromEdit = pdfOpenedFromEdit;
+    const savedId = currentFileId;
+    pdfOpenedFromEdit = false;
     document.getElementById("pdfOverlay").classList.remove("open");
     currentFileId = null; selectedFile = null;
+    if (wasFromEdit && savedId != null) openEditModal(savedId);
   }
   function onDragOver(e)  { e.preventDefault(); e.currentTarget.classList.add("drag-over"); }
   function onDragLeave(e) { e.currentTarget.classList.remove("drag-over"); }
@@ -1064,12 +1189,13 @@
   async function startProcess() {
     if (!selectedFile) return;
     const f = files.find(x => x.id === currentFileId);
+    const isAdditional = f.status === "保存済み";
     document.getElementById("submitBtn").disabled     = true;
     document.getElementById("cancelBtn").disabled     = true;
     document.getElementById("dropZone").style.display = "none";
     const log = document.getElementById("processLog");
     log.className = "process-log show"; log.innerHTML = "";
-    f.status = "処理中"; applyFilter();
+    if (!isAdditional) { f.status = "処理中"; applyFilter(); }
     const add = (msg, cls = "log-info") => {
       log.innerHTML += `<div class="log-line ${cls}">${msg}</div>`; log.scrollTop = log.scrollHeight;
     };
@@ -1080,8 +1206,16 @@
     await wait(1400); add("✅  [1/2] サーバーへのファイル保存 — 完了", "log-ok");
     await wait(400);  add("📧  [2/2] メール通知 — 送信中... (keiri@example.co.jp)", "log-wait");
     await wait(1200); add("✅  [2/2] メール通知 — 送信完了", "log-ok");
-    await wait(300);  add("🎉  電子帳簿保存が完了しました", "log-ok");
-    f.status = "保存済み"; f.savedAt = today(); f.pdfName = selectedFile.name;
+    await wait(300);  add(isAdditional ? "🎉  PDF の追加保存が完了しました" : "🎉  電子帳簿保存が完了しました", "log-ok");
+
+    // PDFを追加
+    f.pdfs.push({ name: selectedFile.name, savedAt: today() });
+    if (!isAdditional) {
+      f.status  = "保存済み";
+      f.savedAt = today();
+    }
+
+    document.getElementById("successBanner").textContent = isAdditional ? "✅ PDFを追加保存しました" : "✅ 電子帳簿保存が完了しました";
     document.getElementById("successBanner").className = "success-banner show";
     document.getElementById("cancelBtn").disabled  = false;
     document.getElementById("cancelBtn").textContent = "閉じる";
