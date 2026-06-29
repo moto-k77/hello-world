@@ -66,17 +66,18 @@ function evaluateLamp(lampId: LampId, stats: PixelStats): AnalysisResult {
   switch (lampId) {
     case 'tail':
     case 'brake': {
-      // Red light: R dominant, peak luminance high
-      const LIT_THRESH = 110;
-      const redDominant = avgTopR > avgTopG * 1.4 && avgTopR > avgTopB * 1.4;
-      const isLit = peakLum > LIT_THRESH && avgTopR > 100;
-      const conf = redDominant && peakLum > LIT_THRESH + 20 ? 'high' : confidence(peakLum, LIT_THRESH);
+      // Red light: R must strongly dominate G and B (ratio 1.8x), brightness high
+      // Loose thresholds caused false positives on PC screens / white light
+      const LIT_THRESH = 120;
+      const redDominant = avgTopR > avgTopG * 1.8 && avgTopR > avgTopB * 1.8 && avgTopR > 130;
+      const isLit = peakLum > LIT_THRESH && redDominant;
+      const conf = isLit && peakLum > LIT_THRESH + 30 ? 'high' : confidence(peakLum, LIT_THRESH);
       return {
         isLit,
         confidence: conf,
         comment: isLit
           ? `赤色の輝点を検出（ピーク輝度 ${peakLum.toFixed(0)}、R=${avgTopR.toFixed(0)}）`
-          : `輝点が不十分（ピーク輝度 ${peakLum.toFixed(0)}、消灯の可能性）`,
+          : `赤色優位の輝点が不十分（R=${avgTopR.toFixed(0)} G=${avgTopG.toFixed(0)} B=${avgTopB.toFixed(0)}）`,
       };
     }
 
