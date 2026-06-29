@@ -6,3 +6,19 @@ __pycache__/
 dist/
 build/
 .venv/
+
+# Node.js
+node_modules/
+*.local
+
+# Vite build output (subprojects)
+CombinationLampInspector/dist/
+WeeklyBoard/frontend/dist/
+ProjectView/frontend/dist/
+
+# Zip archives
+*.zip
+
+# Misc
+b2.txt
+build_output.txt
