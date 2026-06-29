@@ -1,0 +1,174 @@
+@inject LedgerFileService Svc
+@inject EmailService EmailSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            @(File.Pdfs.Any() ? "📎 PDF を追加" : "📎 PDF を添付して電子帳簿保存")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <!-- ドキュメント情報 -->
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex-wrap:wrap">
+                <MudChip T="string" Size="Size.Small" Color="@CatColor" Variant="Variant.Text">
+                    @File.Category
+                </MudChip>
+                <MudChip T="string" Size="Size.Small" Color="@CatColor" Variant="Variant.Filled">
+                    @File.Type
+                </MudChip>
+                <MudText Typo="Typo.body2"><b>@File.Name</b></MudText>
+                <MudText Typo="Typo.caption" Style="color:#aaa">@File.Counterparty</MudText>
+            </MudStack>
+
+            <!-- 既存PDF -->
+            @if (File.Pdfs.Any())
+            {
+                <MudPaper Class="pa-3" Style="background:#f0f4ff;border:1px solid #c7d2fe">
+                    <MudText Typo="Typo.caption" Style="font-weight:700;color:#4338ca">
+                        📋 現在の添付PDF
+                    </MudText>
+                    @foreach (var p in File.Pdfs)
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-1">
+                            <MudText Typo="Typo.body2" Style="flex:1">📎 @p.FileName</MudText>
+                            <MudText Typo="Typo.caption" Style="color:#aaa">
+                                @p.SavedAt.ToString("yyyy-MM-dd")
+                            </MudText>
+                        </MudStack>
+                    }
+                </MudPaper>
+            }
+
+            <!-- ファイル選択 -->
+            @if (!_completed)
+            {
+                <MudFileUpload T="IBrowserFile" FilesChanged="OnFileSelected"
+                               Accept=".pdf" MaximumFileCount="1">
+                    <ActivatorContent>
+                        <MudPaper Outlined="true" Class="pa-6" Style="text-align:center;cursor:pointer;border-style:dashed;border-color:#c5cae9">
+                            <MudText Style="font-size:32px">📄</MudText>
+                            <MudText Typo="Typo.body1">PDF をタップして選択</MudText>
+                            <MudText Typo="Typo.caption" Style="color:#aaa">
+                                またはドラッグ＆ドロップ（最大 50MB）
+                            </MudText>
+                            @if (_selectedFile != null)
+                            {
+                                <MudText Typo="Typo.body2" Style="color:#1a3a6b;margin-top:8px">
+                                    ✔ @_selectedFile.Name
+                                </MudText>
+                            }
+                        </MudPaper>
+                    </ActivatorContent>
+                </MudFileUpload>
+            }
+
+            <!-- 処理ログ -->
+            @if (_logs.Any())
+            {
+                <MudPaper Class="pa-3" Style="background:#1e1e2e;border-radius:8px;font-family:monospace;font-size:12px;max-height:140px;overflow-y:auto">
+                    @foreach (var (msg, color) in _logs)
+                    {
+                        <div style="color:@color;line-height:1.8">@msg</div>
+                    }
+                </MudPaper>
+            }
+
+            <!-- 完了バナー -->
+            @if (_completed)
+            {
+                <MudAlert Severity="Severity.Success">✅ 電子帳簿保存が完了しました</MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        @if (!_processing && !_completed)
+        {
+            <MudButton OnClick="Cancel">キャンセル</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       Disabled="_selectedFile == null" OnClick="StartProcess">
+                保存を実行
+            </MudButton>
+        }
+        @if (_completed)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       OnClick="() => MudDialog.Close(DialogResult.Ok(true))">
+                閉じる
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public LedgerFile File { get; set; } = null!;
+
+    IBrowserFile? _selectedFile;
+    bool _processing;
+    bool _completed;
+    List<(string msg, string color)> _logs = [];
+
+    Color CatColor => File.Category == "販売" ? Color.Success : Color.Warning;
+
+    void OnFileSelected(IBrowserFile file) => _selectedFile = file;
+
+    void AddLog(string msg, string color = "#89dceb")
+    {
+        _logs.Add((msg, color));
+        StateHasChanged();
+    }
+
+    async Task StartProcess()
+    {
+        if (_selectedFile == null) return;
+        _processing = true;
+
+        AddLog("▶  処理を開始します...");
+        await Task.Delay(400);
+        AddLog($"📂  {_selectedFile.Name} ({_selectedFile.Size / 1024.0:F1} KB)");
+        await Task.Delay(500);
+        AddLog($"📋  [{File.Category}] {File.Type}  ／  {File.Counterparty}");
+        await Task.Delay(700);
+        AddLog("📤  [1/2] サーバーへのファイル保存 — 送信中...", "#f9e2af");
+        await Task.Delay(1200);
+
+        try
+        {
+            await using var stream = _selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+            await Svc.AddPdfAsync(File.Id, _selectedFile.Name, stream);
+        }
+        catch (Exception ex)
+        {
+            AddLog($"❌  エラー: {ex.Message}", "#f38ba8");
+            _processing = false;
+            return;
+        }
+
+        AddLog("✅  [1/2] サーバーへのファイル保存 — 完了", "#a6e3a1");
+        await Task.Delay(400);
+        AddLog("📧  [2/2] メール通知 — 送信中...", "#f9e2af");
+        await Task.Delay(800);
+
+        try
+        {
+            await EmailSvc.SendSavedNotificationAsync(File);
+            AddLog("✅  [2/2] メール通知 — 送信完了", "#a6e3a1");
+        }
+        catch
+        {
+            AddLog("⚠️  [2/2] メール通知 — 送信スキップ（設定未完了）", "#f9e2af");
+        }
+
+        await Task.Delay(300);
+        AddLog("🎉  電子帳簿保存が完了しました", "#a6e3a1");
+
+        File.Status = "保存済み";
+        _completed  = true;
+        _processing = false;
+        Snackbar.Add("✅ 電子帳簿保存が完了しました", Severity.Success);
+    }
+
+    void Cancel() => MudDialog.Cancel();
+}
