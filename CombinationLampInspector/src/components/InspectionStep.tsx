@@ -1,31 +1,41 @@
 import { useState } from 'react';
 import type { LampDefinition, InspectionResult } from '../types';
 import { CameraCapture } from './CameraCapture';
-import { analyzeLampImage } from '../api/claudeAnalysis';
+import { RoiSelector } from './RoiSelector';
+import { analyzeLampImage } from '../api/canvasAnalysis';
+import type { ROI } from '../api/canvasAnalysis';
 
 interface Props {
   lamp: LampDefinition;
   stepIndex: number;
   totalSteps: number;
-  apiKey: string;
   onComplete: (result: InspectionResult) => void;
   onSkip: () => void;
 }
 
-type Phase = 'instruction' | 'camera' | 'analyzing' | 'result';
+type Phase = 'instruction' | 'camera' | 'roi-select' | 'analyzing' | 'result';
 
-export function InspectionStep({ lamp, stepIndex, totalSteps, apiKey, onComplete, onSkip }: Props) {
+export function InspectionStep({ lamp, stepIndex, totalSteps, onComplete, onSkip }: Props) {
   const [phase, setPhase] = useState<Phase>('instruction');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<{ isLit: boolean; confidence: string; comment: string } | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<{
+    isLit: boolean;
+    confidence: string;
+    comment: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleCapture = async (dataUrl: string) => {
+  const handleCapture = (dataUrl: string) => {
     setCapturedImage(dataUrl);
+    setPhase('roi-select');
+  };
+
+  const handleRoiConfirm = async (roi: ROI) => {
+    if (!capturedImage) return;
     setPhase('analyzing');
     setError(null);
     try {
-      const result = await analyzeLampImage(dataUrl, lamp, apiKey);
+      const result = await analyzeLampImage(capturedImage, lamp.id, roi);
       setAnalysisResult(result);
       setPhase('result');
     } catch (e) {
@@ -53,6 +63,17 @@ export function InspectionStep({ lamp, stepIndex, totalSteps, apiKey, onComplete
 
   if (phase === 'camera') {
     return <CameraCapture onCapture={handleCapture} onCancel={() => setPhase('instruction')} />;
+  }
+
+  if (phase === 'roi-select' && capturedImage) {
+    return (
+      <RoiSelector
+        imageDataUrl={capturedImage}
+        lampLabel={lamp.label}
+        onConfirm={handleRoiConfirm}
+        onRetake={handleRetake}
+      />
+    );
   }
 
   return (
@@ -92,10 +113,7 @@ export function InspectionStep({ lamp, stepIndex, totalSteps, apiKey, onComplete
             >
               📷　カメラ起動
             </button>
-            <button
-              onClick={onSkip}
-              className="w-full text-slate-500 py-2 text-sm"
-            >
+            <button onClick={onSkip} className="w-full text-slate-500 py-2 text-sm">
               スキップ
             </button>
           </div>
@@ -109,7 +127,7 @@ export function InspectionStep({ lamp, stepIndex, totalSteps, apiKey, onComplete
           )}
           <div className="flex flex-col items-center gap-3">
             <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-300 text-sm">AIが点灯状態を解析中...</p>
+            <p className="text-slate-300 text-sm">ピクセル解析中...</p>
           </div>
         </div>
       )}
@@ -137,7 +155,11 @@ export function InspectionStep({ lamp, stepIndex, totalSteps, apiKey, onComplete
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-3xl">{analysisResult.isLit ? '✅' : '❌'}</span>
                 <div>
-                  <p className={`font-bold text-lg ${analysisResult.isLit ? 'text-green-300' : 'text-red-300'}`}>
+                  <p
+                    className={`font-bold text-lg ${
+                      analysisResult.isLit ? 'text-green-300' : 'text-red-300'
+                    }`}
+                  >
                     {analysisResult.isLit ? '点灯 OK' : '点灯 NG'}
                   </p>
                   <p className="text-slate-400 text-xs">信頼度: {analysisResult.confidence}</p>
@@ -148,20 +170,22 @@ export function InspectionStep({ lamp, stepIndex, totalSteps, apiKey, onComplete
           ) : null}
 
           <div className="flex flex-col gap-3 mt-auto">
-            {!error && analysisResult && (
+            {(analysisResult || error) && (
               <button
-                onClick={handleAccept}
+                onClick={error ? handleRetake : handleAccept}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-4 rounded-2xl text-lg transition-colors"
               >
-                次へ →
+                {error ? '撮り直す' : '次へ →'}
               </button>
             )}
-            <button
-              onClick={handleRetake}
-              className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-2xl transition-colors"
-            >
-              撮り直す
-            </button>
+            {!error && (
+              <button
+                onClick={handleRetake}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-2xl transition-colors"
+              >
+                撮り直す
+              </button>
+            )}
             <button onClick={onSkip} className="w-full text-slate-500 py-2 text-sm">
               スキップ
             </button>

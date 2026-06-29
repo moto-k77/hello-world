@@ -1,25 +1,17 @@
 import { useState } from 'react';
 import type { InspectionResult } from './types';
 import { LAMPS } from './lamps';
-import { ApiKeySetup } from './components/ApiKeySetup';
 import { InspectionStep } from './components/InspectionStep';
 import { ResultsSummary } from './components/ResultsSummary';
 
-type AppPhase = 'setup' | 'vehicle-entry' | 'inspection' | 'results';
+type AppPhase = 'vehicle-entry' | 'inspection' | 'results';
 
 export default function App() {
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('cls_apikey') ?? '');
   const [vehicleInput, setVehicleInput] = useState('');
   const [vehicleId, setVehicleId] = useState('');
-  const [phase, setPhase] = useState<AppPhase>(apiKey ? 'vehicle-entry' : 'setup');
+  const [phase, setPhase] = useState<AppPhase>('vehicle-entry');
   const [stepIndex, setStepIndex] = useState(0);
   const [results, setResults] = useState<InspectionResult[]>([]);
-
-  const handleApiKeySave = (key: string) => {
-    localStorage.setItem('cls_apikey', key);
-    setApiKey(key);
-    setPhase('vehicle-entry');
-  };
 
   const handleStartInspection = () => {
     const id = vehicleInput.trim() || `VH-${Date.now()}`;
@@ -57,10 +49,6 @@ export default function App() {
     setPhase('vehicle-entry');
   };
 
-  if (phase === 'setup') {
-    return <ApiKeySetup onSave={handleApiKeySave} />;
-  }
-
   if (phase === 'vehicle-entry') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900">
@@ -86,9 +74,6 @@ export default function App() {
               検査開始
             </button>
           </div>
-          <button onClick={() => setPhase('setup')} className="w-full mt-4 text-slate-500 text-sm">
-            APIキー変更
-          </button>
         </div>
       </div>
     );
@@ -101,7 +86,6 @@ export default function App() {
         lamp={LAMPS[stepIndex]}
         stepIndex={stepIndex}
         totalSteps={LAMPS.length}
-        apiKey={apiKey}
         onComplete={handleStepComplete}
         onSkip={handleSkip}
       />
