@@ -17,6 +17,7 @@ export interface LampDefinition {
 export interface InspectionResult {
   lampId: LampId;
   status: LampStatus;
+  intensity?: 'strong' | 'normal' | 'weak' | null;
   imageDataUrl?: string;
   aiComment?: string;
   timestamp: number;

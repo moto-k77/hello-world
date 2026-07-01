@@ -21,6 +21,7 @@ export function InspectionStep({ lamp, stepIndex, totalSteps, onComplete, onSkip
   const [analysisResult, setAnalysisResult] = useState<{
     isLit: boolean;
     confidence: string;
+    intensity: 'strong' | 'normal' | 'weak' | null;
     comment: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +49,7 @@ export function InspectionStep({ lamp, stepIndex, totalSteps, onComplete, onSkip
     onComplete({
       lampId: lamp.id,
       status: analysisResult?.isLit ? 'ok' : 'ng',
+      intensity: analysisResult?.intensity,
       imageDataUrl: capturedImage ?? undefined,
       aiComment: analysisResult?.comment,
       timestamp: Date.now(),
@@ -154,7 +156,7 @@ export function InspectionStep({ lamp, stepIndex, totalSteps, onComplete, onSkip
             >
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-3xl">{analysisResult.isLit ? '✅' : '❌'}</span>
-                <div>
+                <div className="flex-1">
                   <p
                     className={`font-bold text-lg ${
                       analysisResult.isLit ? 'text-green-300' : 'text-red-300'
@@ -164,6 +166,19 @@ export function InspectionStep({ lamp, stepIndex, totalSteps, onComplete, onSkip
                   </p>
                   <p className="text-slate-400 text-xs">信頼度: {analysisResult.confidence}</p>
                 </div>
+                {analysisResult.isLit && analysisResult.intensity && (
+                  <span
+                    className={`text-sm font-bold px-3 py-1 rounded-full ${
+                      analysisResult.intensity === 'strong'
+                        ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50'
+                        : analysisResult.intensity === 'normal'
+                          ? 'bg-blue-500/30 text-blue-300 border border-blue-500/50'
+                          : 'bg-slate-500/30 text-slate-300 border border-slate-500/50'
+                    }`}
+                  >
+                    {analysisResult.intensity === 'strong' ? '🔆 強' : analysisResult.intensity === 'normal' ? '💡 普通' : '🔅 弱'}
+                  </span>
+                )}
               </div>
               <p className="text-slate-300 text-sm">{analysisResult.comment}</p>
             </div>

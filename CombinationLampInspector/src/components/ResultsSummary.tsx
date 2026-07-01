@@ -48,7 +48,20 @@ export function ResultsSummary({ vehicleId, results, onRestart }: Props) {
                     )}
                   </div>
                 </div>
-                <span className={`font-bold text-sm ${statusConfig.text}`}>{statusConfig.label}</span>
+                <div className="flex items-center gap-2">
+                  {status === 'ok' && result?.intensity && (
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      result.intensity === 'strong'
+                        ? 'bg-yellow-500/30 text-yellow-300'
+                        : result.intensity === 'normal'
+                          ? 'bg-blue-500/30 text-blue-300'
+                          : 'bg-slate-500/30 text-slate-300'
+                    }`}>
+                      {result.intensity === 'strong' ? '🔆 強' : result.intensity === 'normal' ? '💡 普通' : '🔅 弱'}
+                    </span>
+                  )}
+                  <span className={`font-bold text-sm ${statusConfig.text}`}>{statusConfig.label}</span>
+                </div>
               </div>
               {result?.imageDataUrl && (
                 <img

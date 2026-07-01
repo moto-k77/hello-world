@@ -3,6 +3,7 @@ import type { LampId } from '../types';
 export interface AnalysisResult {
   isLit: boolean;
   confidence: 'high' | 'medium' | 'low';
+  intensity: 'strong' | 'normal' | 'weak' | null;
   comment: string;
 }
 
@@ -55,7 +56,6 @@ function extractPixelStats(pixels: Uint8ClampedArray): PixelStats {
 function evaluateLamp(lampId: LampId, stats: PixelStats): AnalysisResult {
   const { peakLum, avgTopR, avgTopG, avgTopB } = stats;
 
-  // Confidence based on peak luminance separation from threshold
   function confidence(peak: number, litThresh: number): 'high' | 'medium' | 'low' {
     const margin = Math.abs(peak - litThresh);
     if (margin > 40) return 'high';
@@ -63,55 +63,78 @@ function evaluateLamp(lampId: LampId, stats: PixelStats): AnalysisResult {
     return 'low';
   }
 
+  function redIntensity(peak: number, r: number): 'strong' | 'normal' | 'weak' {
+    if (peak > 200 && r > 190) return 'strong';
+    if (peak > 155 && r > 150) return 'normal';
+    return 'weak';
+  }
+
+  function amberIntensity(peak: number, r: number): 'strong' | 'normal' | 'weak' {
+    if (peak > 200 && r > 190) return 'strong';
+    if (peak > 155 && r > 150) return 'normal';
+    return 'weak';
+  }
+
+  function whiteIntensity(peak: number): 'strong' | 'normal' | 'weak' {
+    if (peak > 210) return 'strong';
+    if (peak > 170) return 'normal';
+    return 'weak';
+  }
+
   switch (lampId) {
     case 'tail':
     case 'brake': {
-      // Red light: R must strongly dominate G and B (ratio 1.8x), brightness high
-      // Loose thresholds caused false positives on PC screens / white light
       const LIT_THRESH = 120;
       const redDominant = avgTopR > avgTopG * 1.8 && avgTopR > avgTopB * 1.8 && avgTopR > 130;
       const isLit = peakLum > LIT_THRESH && redDominant;
+      const intensity = isLit ? redIntensity(peakLum, avgTopR) : null;
+      const intensityLabel = intensity === 'strong' ? '強点灯' : intensity === 'normal' ? '普通' : intensity === 'weak' ? '弱点灯' : '';
       const conf = isLit && peakLum > LIT_THRESH + 30 ? 'high' : confidence(peakLum, LIT_THRESH);
       return {
         isLit,
         confidence: conf,
+        intensity,
         comment: isLit
-          ? `赤色の輝点を検出（ピーク輝度 ${peakLum.toFixed(0)}、R=${avgTopR.toFixed(0)}）`
+          ? `赤色の輝点を検出・${intensityLabel}（ピーク輝度 ${peakLum.toFixed(0)}、R=${avgTopR.toFixed(0)}）`
           : `赤色優位の輝点が不十分（R=${avgTopR.toFixed(0)} G=${avgTopG.toFixed(0)} B=${avgTopB.toFixed(0)}）`,
       };
     }
 
     case 'winker_left':
     case 'winker_right': {
-      // Amber/orange: high R, medium G, low B
       const LIT_THRESH = 110;
       const amberColor = avgTopR > 100 && avgTopG > 40 && avgTopB < avgTopR * 0.6;
       const isLit = peakLum > LIT_THRESH && amberColor;
+      const intensity = isLit ? amberIntensity(peakLum, avgTopR) : null;
+      const intensityLabel = intensity === 'strong' ? '強点灯' : intensity === 'normal' ? '普通' : intensity === 'weak' ? '弱点灯' : '';
       return {
         isLit,
         confidence: isLit && peakLum > LIT_THRESH + 30 ? 'high' : confidence(peakLum, LIT_THRESH),
+        intensity,
         comment: isLit
-          ? `橙色の輝点を検出（ピーク輝度 ${peakLum.toFixed(0)}、R=${avgTopR.toFixed(0)} G=${avgTopG.toFixed(0)}）`
+          ? `橙色の輝点を検出・${intensityLabel}（ピーク輝度 ${peakLum.toFixed(0)}、R=${avgTopR.toFixed(0)} G=${avgTopG.toFixed(0)}）`
           : `橙色輝点が不十分（ピーク輝度 ${peakLum.toFixed(0)}、消灯の可能性）`,
       };
     }
 
     case 'reverse': {
-      // White light: all channels high
       const LIT_THRESH = 130;
       const whiteColor = avgTopR > 100 && avgTopG > 100 && avgTopB > 80;
       const isLit = peakLum > LIT_THRESH && whiteColor;
+      const intensity = isLit ? whiteIntensity(peakLum) : null;
+      const intensityLabel = intensity === 'strong' ? '強点灯' : intensity === 'normal' ? '普通' : intensity === 'weak' ? '弱点灯' : '';
       return {
         isLit,
         confidence: isLit && peakLum > LIT_THRESH + 30 ? 'high' : confidence(peakLum, LIT_THRESH),
+        intensity,
         comment: isLit
-          ? `白色の輝点を検出（ピーク輝度 ${peakLum.toFixed(0)}）`
+          ? `白色の輝点を検出・${intensityLabel}（ピーク輝度 ${peakLum.toFixed(0)}）`
           : `白色輝点が不十分（ピーク輝度 ${peakLum.toFixed(0)}、消灯の可能性）`,
       };
     }
 
     default:
-      return { isLit: false, confidence: 'low', comment: '未知のランプ種別' };
+      return { isLit: false, confidence: 'low', intensity: null, comment: '未知のランプ種別' };
   }
 }
 
