@@ -17,7 +17,7 @@ export interface RawColorStats {
 export type Verdict = 'lit-strong' | 'lit-normal' | 'lit-weak' | 'unlit';
 
 export interface MethodResult {
-  method: 'RGB' | 'HSV' | 'YCbCr';
+  method: 'RGB' | 'HSV' | 'YCbCr' | 'Claude AI';
   verdict: Verdict;
   reasoning: string;
 }

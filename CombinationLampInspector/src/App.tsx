@@ -7,6 +7,7 @@ import { AccuracyReport } from './components/AccuracyReport';
 import { analyzeROI } from './api/colorAnalysis';
 import type { ROI, FullAnalysis } from './api/colorAnalysis';
 import type { VerificationEntry, GroundTruth } from './types';
+import type { MethodResult } from './api/colorAnalysis';
 
 type Phase = 'select' | 'camera' | 'roi' | 'result' | 'report';
 
@@ -44,15 +45,18 @@ export default function App() {
     }
   };
 
-  const handleRecord = (gt: GroundTruth) => {
+  const handleRecord = (gt: GroundTruth, claudeResult: MethodResult | null) => {
     if (!analysis || !capturedImage) return;
+    const predictions = claudeResult
+      ? [...analysis.predictions, claudeResult]
+      : analysis.predictions;
     const entry: VerificationEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       timestamp: Date.now(),
       lampLabel,
       imageDataUrl: capturedImage,
       stats: analysis.stats,
-      predictions: analysis.predictions,
+      predictions,
       groundTruth: gt,
     };
     setEntries(prev => [...prev, entry]);
@@ -89,7 +93,7 @@ export default function App() {
         imageDataUrl={capturedImage}
         stats={analysis.stats}
         predictions={analysis.predictions}
-        onRecord={handleRecord}
+        onRecord={(gt, cr) => handleRecord(gt, cr)}
         onRetake={() => setPhase('camera')}
       />
     );
