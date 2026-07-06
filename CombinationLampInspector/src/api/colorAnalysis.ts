@@ -15,10 +15,12 @@ export interface RawColorStats {
 }
 
 export type Verdict = 'lit-strong' | 'lit-normal' | 'lit-weak' | 'unlit';
+export type LampColor = '赤' | '橙' | '白' | '黄' | '不明';
 
 export interface MethodResult {
   method: 'RGB' | 'HSV' | 'YCbCr' | 'Claude AI';
   verdict: Verdict;
+  color: LampColor | null; // null when unlit
   reasoning: string;
 }
 
@@ -75,61 +77,51 @@ function predictRGB(stats: RawColorStats): MethodResult {
   const { r, g, b } = stats.rgb;
   const lum = stats.peakLum;
 
-  // Red dominant (tail/brake)
   if (r > g * 1.8 && r > b * 1.8 && r > 130) {
-    return { method: 'RGB', verdict: verdictFromLum(lum, 120), reasoning: `R優位(R=${r.toFixed(0)} G=${g.toFixed(0)} B=${b.toFixed(0)})` };
+    return { method: 'RGB', verdict: verdictFromLum(lum, 120), color: '赤', reasoning: `R優位(R=${r.toFixed(0)} G=${g.toFixed(0)} B=${b.toFixed(0)})` };
   }
-  // Amber (winker)
   if (r > 100 && g > 40 && b < r * 0.6 && r > g * 1.2) {
-    return { method: 'RGB', verdict: verdictFromLum(lum, 110), reasoning: `橙色(R=${r.toFixed(0)} G=${g.toFixed(0)} B=${b.toFixed(0)})` };
+    return { method: 'RGB', verdict: verdictFromLum(lum, 110), color: '橙', reasoning: `橙色(R=${r.toFixed(0)} G=${g.toFixed(0)} B=${b.toFixed(0)})` };
   }
-  // White (reverse)
   if (r > 100 && g > 100 && b > 80 && lum > 130) {
-    return { method: 'RGB', verdict: verdictFromLum(lum, 130), reasoning: `白色(R=${r.toFixed(0)} G=${g.toFixed(0)} B=${b.toFixed(0)})` };
+    return { method: 'RGB', verdict: verdictFromLum(lum, 130), color: '白', reasoning: `白色(R=${r.toFixed(0)} G=${g.toFixed(0)} B=${b.toFixed(0)})` };
   }
-  return { method: 'RGB', verdict: 'unlit', reasoning: `色優位なし(R=${r.toFixed(0)} G=${g.toFixed(0)} B=${b.toFixed(0)})` };
+  return { method: 'RGB', verdict: 'unlit', color: null, reasoning: `色優位なし(R=${r.toFixed(0)} G=${g.toFixed(0)} B=${b.toFixed(0)})` };
 }
 
 function predictHSV(stats: RawColorStats): MethodResult {
   const { h, s, v } = stats.hsv;
   const lum = stats.peakLum;
 
-  // Red: H < 15 or H > 345, needs saturation
   if ((h < 15 || h > 345) && s > 35 && v > 45) {
-    return { method: 'HSV', verdict: verdictFromLum(lum, 120), reasoning: `赤色相(H=${h}° S=${s}% V=${v}%)` };
+    return { method: 'HSV', verdict: verdictFromLum(lum, 120), color: '赤', reasoning: `赤色相(H=${h}° S=${s}% V=${v}%)` };
   }
-  // Amber/Orange: H 15-40
   if (h >= 15 && h <= 45 && s > 35 && v > 45) {
-    return { method: 'HSV', verdict: verdictFromLum(lum, 110), reasoning: `橙色相(H=${h}° S=${s}% V=${v}%)` };
+    return { method: 'HSV', verdict: verdictFromLum(lum, 110), color: '橙', reasoning: `橙色相(H=${h}° S=${s}% V=${v}%)` };
   }
-  // Yellow: H 45-65 (can appear in strong tail/brake)
   if (h > 45 && h <= 65 && s > 35 && v > 60) {
-    return { method: 'HSV', verdict: verdictFromLum(lum, 130), reasoning: `黄色相(H=${h}° S=${s}% V=${v}%)` };
+    return { method: 'HSV', verdict: verdictFromLum(lum, 130), color: '黄', reasoning: `黄色相(H=${h}° S=${s}% V=${v}%)` };
   }
-  // White: low saturation, high value
   if (s < 25 && v > 65) {
-    return { method: 'HSV', verdict: verdictFromLum(lum, 130), reasoning: `白色(低彩度 S=${s}% V=${v}%)` };
+    return { method: 'HSV', verdict: verdictFromLum(lum, 130), color: '白', reasoning: `白色(低彩度 S=${s}% V=${v}%)` };
   }
-  return { method: 'HSV', verdict: 'unlit', reasoning: `ランプ色なし(H=${h}° S=${s}% V=${v}%)` };
+  return { method: 'HSV', verdict: 'unlit', color: null, reasoning: `ランプ色なし(H=${h}° S=${s}% V=${v}%)` };
 }
 
 function predictYCbCr(stats: RawColorStats): MethodResult {
   const { y, cb, cr } = stats.ycbcr;
   const lum = stats.peakLum;
 
-  // Red: high Cr, low Cb
   if (cr > 148 && cb < 120 && y > 60) {
-    return { method: 'YCbCr', verdict: verdictFromLum(lum, 120), reasoning: `赤(Y=${y} Cb=${cb} Cr=${cr})` };
+    return { method: 'YCbCr', verdict: verdictFromLum(lum, 120), color: '赤', reasoning: `赤(Y=${y} Cb=${cb} Cr=${cr})` };
   }
-  // Amber/Orange: high Cr, moderate Cb
   if (cr > 135 && cb < 130 && y > 80) {
-    return { method: 'YCbCr', verdict: verdictFromLum(lum, 110), reasoning: `橙(Y=${y} Cb=${cb} Cr=${cr})` };
+    return { method: 'YCbCr', verdict: verdictFromLum(lum, 110), color: '橙', reasoning: `橙(Y=${y} Cb=${cb} Cr=${cr})` };
   }
-  // White: high Y, Cb/Cr near 128
   if (y > 150 && Math.abs(cb - 128) < 20 && Math.abs(cr - 128) < 20) {
-    return { method: 'YCbCr', verdict: verdictFromLum(lum, 130), reasoning: `白(Y=${y} Cb=${cb} Cr=${cr})` };
+    return { method: 'YCbCr', verdict: verdictFromLum(lum, 130), color: '白', reasoning: `白(Y=${y} Cb=${cb} Cr=${cr})` };
   }
-  return { method: 'YCbCr', verdict: 'unlit', reasoning: `ランプ色なし(Y=${y} Cb=${cb} Cr=${cr})` };
+  return { method: 'YCbCr', verdict: 'unlit', color: null, reasoning: `ランプ色なし(Y=${y} Cb=${cb} Cr=${cr})` };
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
