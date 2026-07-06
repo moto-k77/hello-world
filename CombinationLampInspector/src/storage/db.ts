@@ -59,8 +59,25 @@ export async function clearAllEntries(): Promise<void> {
   });
 }
 
+// Share or download a blob — uses Web Share API on iOS/Android, falls back to <a download> on desktop
+async function shareOrDownload(blob: Blob, filename: string): Promise<void> {
+  if (typeof navigator.canShare === 'function') {
+    const file = new File([blob], filename, { type: blob.type });
+    if (navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename });
+      return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // Export entries as CSV (without images)
-export function exportCSV(entries: VerificationEntry[]): void {
+export async function exportCSV(entries: VerificationEntry[]): Promise<void> {
   const header = [
     '日時', 'ランプ', '正解',
     'RGB_R', 'RGB_G', 'RGB_B', '輝度',
@@ -97,25 +114,21 @@ export function exportCSV(entries: VerificationEntry[]): void {
 
   const bom = '﻿'; // UTF-8 BOM for Excel
   const blob = new Blob([bom + [header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `lamp-verification-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await shareOrDownload(blob, `lamp-verification-${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 // Export single entry's photo
-export function exportPhoto(entry: VerificationEntry): void {
-  const a = document.createElement('a');
-  a.href = entry.imageDataUrl;
+export async function exportPhoto(entry: VerificationEntry): Promise<void> {
   const ext = entry.imageDataUrl.startsWith('data:image/png') ? 'png' : 'jpg';
-  a.download = `lamp-${entry.lampLabel}-${new Date(entry.timestamp).toISOString().slice(0, 19).replace(/:/g, '-')}.${ext}`;
-  a.click();
+  const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+  const filename = `lamp-${entry.lampLabel}-${new Date(entry.timestamp).toISOString().slice(0, 19).replace(/:/g, '-')}.${ext}`;
+  const res = await fetch(entry.imageDataUrl);
+  const blob = await res.blob();
+  await shareOrDownload(new Blob([blob], { type: mime }), filename);
 }
 
 // Export full HTML report with embedded photos
-export function exportHTMLReport(entries: VerificationEntry[]): void {
+export async function exportHTMLReport(entries: VerificationEntry[]): Promise<void> {
   const verdictJa = (v?: string) => {
     if (!v) return '—';
     if (v === 'unlit') return '消灯';
@@ -253,10 +266,5 @@ export function exportHTMLReport(entries: VerificationEntry[]): void {
 </html>`;
 
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `lamp-report-${new Date().toISOString().slice(0, 10)}.html`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await shareOrDownload(blob, `lamp-report-${new Date().toISOString().slice(0, 10)}.html`);
 }
