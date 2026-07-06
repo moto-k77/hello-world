@@ -1,9 +1,4 @@
-export type LampId =
-  | 'tail'
-  | 'brake'
-  | 'winker_left'
-  | 'winker_right'
-  | 'reverse';
+export type LampId = 'tail' | 'brake' | 'winker_left' | 'winker_right' | 'reverse';
 
 export type LampStatus = 'pending' | 'ok' | 'ng' | 'skipped';
 
@@ -23,9 +18,15 @@ export interface InspectionResult {
   timestamp: number;
 }
 
-export interface InspectionSession {
+// Verification types
+export type GroundTruth = 'lit' | 'unlit';
+
+export interface VerificationEntry {
   id: string;
-  vehicleId: string;
-  startedAt: number;
-  results: InspectionResult[];
+  timestamp: number;
+  lampLabel: string;
+  imageDataUrl: string;
+  stats: import('./api/colorAnalysis').RawColorStats;
+  predictions: import('./api/colorAnalysis').MethodResult[];
+  groundTruth: GroundTruth;
 }

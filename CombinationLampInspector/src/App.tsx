@@ -1,98 +1,174 @@
 import { useState } from 'react';
-import type { InspectionResult } from './types';
 import { LAMPS } from './lamps';
-import { InspectionStep } from './components/InspectionStep';
-import { ResultsSummary } from './components/ResultsSummary';
+import { CameraCapture } from './components/CameraCapture';
+import { RoiSelector } from './components/RoiSelector';
+import { VerificationResult } from './components/VerificationResult';
+import { AccuracyReport } from './components/AccuracyReport';
+import { analyzeROI } from './api/colorAnalysis';
+import type { ROI, FullAnalysis } from './api/colorAnalysis';
+import type { VerificationEntry, GroundTruth } from './types';
 
-type AppPhase = 'vehicle-entry' | 'inspection' | 'results';
+type Phase = 'select' | 'camera' | 'roi' | 'result' | 'report';
 
 export default function App() {
-  const [vehicleInput, setVehicleInput] = useState('');
-  const [vehicleId, setVehicleId] = useState('');
-  const [phase, setPhase] = useState<AppPhase>('vehicle-entry');
-  const [stepIndex, setStepIndex] = useState(0);
-  const [results, setResults] = useState<InspectionResult[]>([]);
+  const [phase, setPhase] = useState<Phase>('select');
+  const [lampLabel, setLampLabel] = useState('');
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<FullAnalysis | null>(null);
+  const [entries, setEntries] = useState<VerificationEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleStartInspection = () => {
-    const id = vehicleInput.trim() || `VH-${Date.now()}`;
-    setVehicleId(id);
-    setResults([]);
-    setStepIndex(0);
-    setPhase('inspection');
+  const handleSelectLamp = (label: string) => {
+    setLampLabel(label);
+    setCapturedImage(null);
+    setAnalysis(null);
+    setError(null);
+    setPhase('camera');
   };
 
-  const handleStepComplete = (result: InspectionResult) => {
-    const newResults = [...results, result];
-    setResults(newResults);
-    if (stepIndex + 1 >= LAMPS.length) {
-      setPhase('results');
-    } else {
-      setStepIndex(stepIndex + 1);
+  const handleCapture = (dataUrl: string) => {
+    setCapturedImage(dataUrl);
+    setPhase('roi');
+  };
+
+  const handleRoiConfirm = async (r: ROI) => {
+    if (!capturedImage) return;
+    setError(null);
+    try {
+      const result = await analyzeROI(capturedImage, r);
+      setAnalysis(result);
+      setPhase('result');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setPhase('result');
     }
   };
 
-  const handleSkip = () => {
-    const newResults = [
-      ...results,
-      { lampId: LAMPS[stepIndex].id, status: 'skipped' as const, timestamp: Date.now() },
-    ];
-    setResults(newResults);
-    if (stepIndex + 1 >= LAMPS.length) {
-      setPhase('results');
-    } else {
-      setStepIndex(stepIndex + 1);
-    }
+  const handleRecord = (gt: GroundTruth) => {
+    if (!analysis || !capturedImage) return;
+    const entry: VerificationEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      timestamp: Date.now(),
+      lampLabel,
+      imageDataUrl: capturedImage,
+      stats: analysis.stats,
+      predictions: analysis.predictions,
+      groundTruth: gt,
+    };
+    setEntries(prev => [...prev, entry]);
+    setPhase('select');
   };
 
-  const handleRestart = () => {
-    setVehicleInput('');
-    setPhase('vehicle-entry');
-  };
-
-  if (phase === 'vehicle-entry') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <div className="text-5xl mb-4">🚗</div>
-            <h1 className="text-2xl font-bold text-white">車両情報入力</h1>
-            <p className="text-slate-400 text-sm mt-1">検査する車両を識別する情報を入力</p>
-          </div>
-          <div className="bg-slate-800 rounded-2xl p-6 shadow-xl">
-            <label className="text-slate-400 text-xs block mb-2">車両ID / ナンバー（任意）</label>
-            <input
-              type="text"
-              placeholder="例: 品川 500 あ 1234"
-              value={vehicleInput}
-              onChange={(e) => setVehicleInput(e.target.value)}
-              className="w-full bg-slate-700 text-white rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-500"
-            />
-            <button
-              onClick={handleStartInspection}
-              className="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-xl transition-colors"
-            >
-              検査開始
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+  if (phase === 'camera') {
+    return <CameraCapture onCapture={handleCapture} onCancel={() => setPhase('select')} />;
   }
 
-  if (phase === 'inspection') {
+  if (phase === 'roi' && capturedImage) {
     return (
-      <InspectionStep
-        key={stepIndex}
-        lamp={LAMPS[stepIndex]}
-        stepIndex={stepIndex}
-        totalSteps={LAMPS.length}
-        onComplete={handleStepComplete}
-        onSkip={handleSkip}
+      <RoiSelector
+        imageDataUrl={capturedImage}
+        lampLabel={lampLabel}
+        onConfirm={handleRoiConfirm}
+        onRetake={() => setPhase('camera')}
       />
     );
   }
 
+  if (phase === 'result' && capturedImage) {
+    if (error || !analysis) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 gap-4">
+          <p className="text-red-400">エラー: {error}</p>
+          <button onClick={() => setPhase('camera')} className="bg-blue-600 text-white px-6 py-3 rounded-2xl">撮り直す</button>
+        </div>
+      );
+    }
+    return (
+      <VerificationResult
+        lampLabel={lampLabel}
+        imageDataUrl={capturedImage}
+        stats={analysis.stats}
+        predictions={analysis.predictions}
+        onRecord={handleRecord}
+        onRetake={() => setPhase('camera')}
+      />
+    );
+  }
+
+  if (phase === 'report') {
+    return (
+      <AccuracyReport
+        entries={entries}
+        onClear={() => setEntries([])}
+        onBack={() => setPhase('select')}
+      />
+    );
+  }
+
+  // Select phase
   return (
-    <ResultsSummary vehicleId={vehicleId} results={results} onRestart={handleRestart} />
+    <div className="min-h-screen flex flex-col bg-slate-900 text-white p-4">
+      <div className="flex items-center justify-between mb-6 mt-2">
+        <div>
+          <h1 className="text-xl font-bold">ランプ検証モード</h1>
+          <p className="text-slate-400 text-xs mt-0.5">RGB / HSV / YCbCr 精度検証</p>
+        </div>
+        <button
+          onClick={() => setPhase('report')}
+          className="relative bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+        >
+          📊 レポート
+          {entries.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+              {entries.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <p className="text-slate-400 text-sm mb-4">検証するランプを選択してください</p>
+
+      <div className="flex flex-col gap-3">
+        {LAMPS.map(lamp => (
+          <button
+            key={lamp.id}
+            onClick={() => handleSelectLamp(lamp.label)}
+            className="bg-slate-800 hover:bg-slate-700 rounded-2xl p-4 flex items-center gap-4 text-left transition-colors border border-slate-700"
+          >
+            <span className="text-3xl">{lamp.icon}</span>
+            <div>
+              <p className="text-white font-semibold">{lamp.label}</p>
+              <p className="text-slate-400 text-xs mt-0.5">{lamp.instruction}</p>
+            </div>
+          </button>
+        ))}
+        <button
+          onClick={() => handleSelectLamp('カスタム')}
+          className="bg-slate-800 hover:bg-slate-700 rounded-2xl p-4 flex items-center gap-4 text-left transition-colors border border-slate-700 border-dashed"
+        >
+          <span className="text-3xl">🔦</span>
+          <div>
+            <p className="text-white font-semibold">カスタム</p>
+            <p className="text-slate-400 text-xs mt-0.5">ランプ種別を問わず撮影・分析</p>
+          </div>
+        </button>
+      </div>
+
+      {entries.length > 0 && (
+        <div className="mt-6 bg-slate-800 rounded-2xl p-4">
+          <p className="text-xs text-slate-400 mb-3">直近の検証</p>
+          {[...entries].slice(-3).reverse().map(e => (
+            <div key={e.id} className="flex items-center gap-3 text-xs py-2 border-b border-slate-700 last:border-0">
+              <img src={e.imageDataUrl} className="w-10 h-7 rounded object-cover shrink-0" />
+              <span className="text-slate-300 flex-1 truncate">{e.lampLabel}</span>
+              <span className="font-mono text-slate-500">H={e.stats.hsv.h}° V={e.stats.hsv.v}%</span>
+              <span className={e.groundTruth === 'lit' ? 'text-green-400' : 'text-slate-400'}>
+                {e.groundTruth === 'lit' ? '点灯' : '消灯'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
