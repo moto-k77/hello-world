@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LAMPS } from './lamps';
 import { CameraCapture } from './components/CameraCapture';
 import { RoiSelector } from './components/RoiSelector';
@@ -8,6 +8,7 @@ import { analyzeROI } from './api/colorAnalysis';
 import type { ROI, FullAnalysis } from './api/colorAnalysis';
 import type { VerificationEntry, GroundTruth } from './types';
 import type { MethodResult } from './api/colorAnalysis';
+import { saveEntry, loadAllEntries, deleteEntry, clearAllEntries } from './storage/db';
 
 type Phase = 'select' | 'camera' | 'roi' | 'result' | 'report';
 
@@ -18,6 +19,10 @@ export default function App() {
   const [analysis, setAnalysis] = useState<FullAnalysis | null>(null);
   const [entries, setEntries] = useState<VerificationEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadAllEntries().then(setEntries).catch(console.error);
+  }, []);
 
   const handleSelectLamp = (label: string) => {
     setLampLabel(label);
@@ -45,7 +50,7 @@ export default function App() {
     }
   };
 
-  const handleRecord = (gt: GroundTruth, claudeResult: MethodResult | null) => {
+  const handleRecord = async (gt: GroundTruth, claudeResult: MethodResult | null) => {
     if (!analysis || !capturedImage) return;
     const predictions = claudeResult
       ? [...analysis.predictions, claudeResult]
@@ -59,8 +64,19 @@ export default function App() {
       predictions,
       groundTruth: gt,
     };
+    await saveEntry(entry).catch(console.error);
     setEntries(prev => [...prev, entry]);
     setPhase('select');
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteEntry(id).catch(console.error);
+    setEntries(prev => prev.filter(e => e.id !== id));
+  };
+
+  const handleClear = async () => {
+    await clearAllEntries().catch(console.error);
+    setEntries([]);
   };
 
   if (phase === 'camera') {
@@ -103,7 +119,8 @@ export default function App() {
     return (
       <AccuracyReport
         entries={entries}
-        onClear={() => setEntries([])}
+        onClear={handleClear}
+        onDelete={handleDelete}
         onBack={() => setPhase('select')}
       />
     );
