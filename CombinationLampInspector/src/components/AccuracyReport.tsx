@@ -1,6 +1,6 @@
 import type { VerificationEntry } from '../types';
 import type { Verdict } from '../api/colorAnalysis';
-import { exportCSV, exportPhoto } from '../storage/db';
+import { exportCSV, exportPhoto, exportHTMLReport } from '../storage/db';
 
 interface Props {
   entries: VerificationEntry[];
@@ -53,14 +53,22 @@ export function AccuracyReport({ entries, onClear, onDelete, onBack }: Props) {
         <button onClick={onBack} className="text-xs text-slate-400 underline">戻る</button>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-slate-400 text-sm">総検証数: <span className="text-white font-bold">{entries.length}件</span></p>
-        <button
-          onClick={() => exportCSV(entries)}
-          className="bg-green-700 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
-        >
-          📥 CSVエクスポート
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => exportHTMLReport(entries)}
+            className="bg-blue-700 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
+          >
+            📄 HTMLレポート
+          </button>
+          <button
+            onClick={() => exportCSV(entries)}
+            className="bg-green-700 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
+          >
+            📥 CSV
+          </button>
+        </div>
       </div>
 
       {/* Accuracy per method */}
