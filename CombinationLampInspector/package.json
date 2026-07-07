@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist -r https://github.com/moto-k77/hello-world.git -b gh-pages"
+    "deploy": "npm run build && gh-pages -d dist -r https://github.com/moto-k77/hello-world.git -b gh-pages -e CombinationLampInspector"
   },
   "dependencies": {
     "react": "^19.2.7",
