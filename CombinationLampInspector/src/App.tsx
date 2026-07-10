@@ -2,15 +2,19 @@ import { useState, useEffect } from 'react';
 import { LAMPS } from './lamps';
 import { CameraCapture } from './components/CameraCapture';
 import { RoiSelector } from './components/RoiSelector';
+import { DiffCapture } from './components/DiffCapture';
+import { DiffCandidates } from './components/DiffCandidates';
 import { VerificationResult } from './components/VerificationResult';
 import { AccuracyReport } from './components/AccuracyReport';
 import { analyzeROI } from './api/colorAnalysis';
 import type { ROI, FullAnalysis } from './api/colorAnalysis';
+import { detectDiffRegions } from './api/diffDetection';
+import type { DiffCandidate } from './api/diffDetection';
 import type { VerificationEntry, GroundTruth } from './types';
 import type { MethodResult } from './api/colorAnalysis';
 import { saveEntry, loadAllEntries, deleteEntry, clearAllEntries } from './storage/db';
 
-type Phase = 'select' | 'camera' | 'roi' | 'result' | 'report';
+type Phase = 'select' | 'camera' | 'roi' | 'diffCapture' | 'diffCandidates' | 'result' | 'report';
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('select');
@@ -19,6 +23,9 @@ export default function App() {
   const [analysis, setAnalysis] = useState<FullAnalysis | null>(null);
   const [entries, setEntries] = useState<VerificationEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [autoDetect, setAutoDetect] = useState(false);
+  const [diffCandidatesList, setDiffCandidatesList] = useState<DiffCandidate[]>([]);
+  const [diffProcessing, setDiffProcessing] = useState(false);
 
   useEffect(() => {
     loadAllEntries().then(setEntries).catch(console.error);
@@ -29,12 +36,26 @@ export default function App() {
     setCapturedImage(null);
     setAnalysis(null);
     setError(null);
-    setPhase('camera');
+    setPhase(autoDetect ? 'diffCapture' : 'camera');
   };
 
   const handleCapture = (dataUrl: string) => {
     setCapturedImage(dataUrl);
     setPhase('roi');
+  };
+
+  const handleDiffComplete = async (baseDataUrl: string, litDataUrl: string) => {
+    setCapturedImage(litDataUrl);
+    setDiffProcessing(true);
+    setPhase('diffCandidates');
+    try {
+      const candidates = await detectDiffRegions(baseDataUrl, litDataUrl);
+      setDiffCandidatesList(candidates);
+    } catch {
+      setDiffCandidatesList([]);
+    } finally {
+      setDiffProcessing(false);
+    }
   };
 
   const handleRoiConfirm = async (r: ROI) => {
@@ -94,6 +115,29 @@ export default function App() {
     );
   }
 
+  if (phase === 'diffCapture') {
+    return <DiffCapture onComplete={handleDiffComplete} onCancel={() => setPhase('select')} />;
+  }
+
+  if (phase === 'diffCandidates' && capturedImage) {
+    if (diffProcessing) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-3">
+          <div className="w-8 h-8 border-4 border-slate-600 border-t-blue-400 rounded-full animate-spin" />
+          <p className="text-slate-400 text-sm">差分を解析中...</p>
+        </div>
+      );
+    }
+    return (
+      <DiffCandidates
+        imageDataUrl={capturedImage}
+        candidates={diffCandidatesList}
+        onSelect={handleRoiConfirm}
+        onRetake={() => setPhase('diffCapture')}
+      />
+    );
+  }
+
   if (phase === 'result' && capturedImage) {
     if (error || !analysis) {
       return (
@@ -148,6 +192,25 @@ export default function App() {
       </div>
 
       <p className="text-slate-400 text-sm mb-4">検証するランプを選択してください</p>
+
+      <button
+        onClick={() => setAutoDetect(v => !v)}
+        className={`mb-4 flex items-center justify-between rounded-2xl p-3 border transition-colors ${
+          autoDetect ? 'bg-blue-900/40 border-blue-600' : 'bg-slate-800 border-slate-700'
+        }`}
+      >
+        <div className="text-left">
+          <p className="text-white text-sm font-semibold">🫨 手ブレ補正 自動検出モード（検証）</p>
+          <p className="text-slate-400 text-xs mt-0.5">消灯/点灯の2枚を撮影し、明るくなった位置を自動検出します</p>
+        </div>
+        <div className={`w-11 h-6 rounded-full shrink-0 ml-3 relative transition-colors ${autoDetect ? 'bg-blue-500' : 'bg-slate-600'}`}>
+          <div
+            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+              autoDetect ? 'translate-x-5' : 'translate-x-0.5'
+            }`}
+          />
+        </div>
+      </button>
 
       <div className="flex flex-col gap-3">
         {LAMPS.map(lamp => (
