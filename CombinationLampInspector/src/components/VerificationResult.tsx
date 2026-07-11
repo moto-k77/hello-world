@@ -202,7 +202,7 @@ export function VerificationResult({ lampLabel, imageDataUrl, stats, predictions
 
         {/* Claude AI row */}
         {claudeStatus === 'done' && claudeResult ? (
-          <div className="grid grid-cols-4 items-center gap-1 bg-purple-900/30 border border-purple-700/40 rounded-xl px-3 py-2">
+          <div className="grid grid-cols-5 items-center gap-1 bg-purple-900/30 border border-purple-700/40 rounded-xl px-3 py-2">
             <span className="text-xs font-bold text-purple-300">Claude</span>
             <span className={`text-xs font-bold text-center px-1 py-0.5 rounded-lg ${verdictText(claudeResult.verdict).style}`}>
               {claudeResult.verdict === 'unlit' ? '消灯' : '点灯'}
@@ -213,27 +213,36 @@ export function VerificationResult({ lampLabel, imageDataUrl, stats, predictions
             <span className={`text-xs font-bold text-center px-1 py-0.5 rounded-lg ${intensityText(claudeResult.verdict).style}`}>
               {intensityText(claudeResult.verdict).label}
             </span>
+            <button
+              onClick={() => { setShowKeyInput(true); setKeyDraft(apiKey); }}
+              className="text-xs text-purple-300 hover:text-purple-100 justify-self-end"
+              title="APIキーを再設定"
+            >
+              ⚙
+            </button>
           </div>
         ) : (
           <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl px-3 py-2 flex items-center justify-between">
             <span className="text-xs font-bold text-purple-300">Claude AI</span>
-            {claudeStatus === 'loading' && (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs text-purple-300">解析中…</span>
-              </div>
-            )}
-            {claudeStatus === 'error' && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-red-400 truncate max-w-32">{claudeError}</span>
-                <button onClick={() => apiKey ? runClaude(apiKey) : setShowKeyInput(true)} className="text-xs bg-slate-600 px-2 py-0.5 rounded text-white shrink-0">再試行</button>
-              </div>
-            )}
-            {claudeStatus === 'idle' && (
-              <button onClick={() => { setShowKeyInput(true); setKeyDraft(apiKey); }} className="text-xs bg-purple-700 hover:bg-purple-600 text-white px-2 py-1 rounded-lg">
-                APIキー設定
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {claudeStatus === 'loading' && (
+                <>
+                  <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs text-purple-300">解析中…</span>
+                </>
+              )}
+              {claudeStatus === 'error' && (
+                <>
+                  <span className="text-xs text-red-400 truncate max-w-32">{claudeError}</span>
+                  <button onClick={() => apiKey ? runClaude(apiKey) : setShowKeyInput(true)} className="text-xs bg-slate-600 px-2 py-0.5 rounded text-white shrink-0">再試行</button>
+                </>
+              )}
+              {claudeStatus !== 'loading' && (
+                <button onClick={() => { setShowKeyInput(true); setKeyDraft(apiKey); }} className="text-xs bg-purple-700 hover:bg-purple-600 text-white px-2 py-1 rounded-lg shrink-0">
+                  {apiKey ? 'キー変更' : 'APIキー設定'}
+                </button>
+              )}
+            </div>
           </div>
         )}
 
