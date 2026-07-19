@@ -60,9 +60,28 @@ function extractTopPixels(pixels: Uint8ClampedArray) {
   entries.sort((a, b) => b.lum - a.lum);
   const topN = Math.max(1, Math.floor(entries.length * 0.1));
   const top = entries.slice(0, topN);
-  const avgR = top.reduce((s, p) => s + p.r, 0) / topN;
-  const avgG = top.reduce((s, p) => s + p.g, 0) / topN;
-  const avgB = top.reduce((s, p) => s + p.b, 0) / topN;
+
+  // A strongly lit lamp often saturates the camera sensor: its brightest pixels clip to
+  // near-white regardless of the lamp's real color, losing hue information. For color
+  // detection, prefer saturated (non-clipped) pixels from a wider bright band instead of
+  // the raw brightest ones. Peak luminance (for intensity) is unaffected by this.
+  const bandN = Math.max(1, Math.floor(entries.length * 0.4));
+  const band = entries.slice(0, bandN);
+  const colorful = band.filter(p => {
+    const mx = Math.max(p.r, p.g, p.b), mn = Math.min(p.r, p.g, p.b);
+    const clipped = mn > 235;
+    return !clipped && mx - mn > 25;
+  });
+  const useColorful = colorful.length >= Math.max(3, Math.floor(band.length * 0.02));
+  const colorSource = useColorful ? colorful : top;
+  const colorTopN = Math.max(1, Math.floor(colorSource.length * 0.25));
+  const colorTop = useColorful
+    ? [...colorSource].sort((a, b) => b.lum - a.lum).slice(0, colorTopN)
+    : colorSource;
+
+  const avgR = colorTop.reduce((s, p) => s + p.r, 0) / colorTop.length;
+  const avgG = colorTop.reduce((s, p) => s + p.g, 0) / colorTop.length;
+  const avgB = colorTop.reduce((s, p) => s + p.b, 0) / colorTop.length;
   return { r: avgR, g: avgG, b: avgB, peakLum: entries[0].lum, pixelCount: entries.length };
 }
 
