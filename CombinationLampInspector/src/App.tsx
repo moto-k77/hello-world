@@ -6,15 +6,29 @@ import { DiffCapture } from './components/DiffCapture';
 import { DiffCandidates } from './components/DiffCandidates';
 import { VerificationResult } from './components/VerificationResult';
 import { AccuracyReport } from './components/AccuracyReport';
+import { VideoUpload } from './components/VideoUpload';
+import { VideoResult } from './components/VideoResult';
 import { analyzeROI } from './api/colorAnalysis';
 import type { ROI, FullAnalysis } from './api/colorAnalysis';
 import { detectDiffRegions } from './api/diffDetection';
 import type { DiffCandidate } from './api/diffDetection';
+import { analyzeVideoFile } from './api/videoAnalysis';
+import type { VideoAnalysisResult } from './api/videoAnalysis';
 import type { VerificationEntry, GroundTruth } from './types';
 import type { MethodResult } from './api/colorAnalysis';
 import { saveEntry, loadAllEntries, deleteEntry, clearAllEntries } from './storage/db';
 
-type Phase = 'select' | 'camera' | 'roi' | 'diffCapture' | 'diffCandidates' | 'result' | 'report';
+type Phase =
+  | 'select'
+  | 'camera'
+  | 'roi'
+  | 'diffCapture'
+  | 'diffCandidates'
+  | 'result'
+  | 'report'
+  | 'videoUpload'
+  | 'videoProcessing'
+  | 'videoResult';
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('select');
@@ -26,6 +40,8 @@ export default function App() {
   const [autoDetect, setAutoDetect] = useState(false);
   const [diffCandidatesList, setDiffCandidatesList] = useState<DiffCandidate[]>([]);
   const [diffProcessing, setDiffProcessing] = useState(false);
+  const [videoResult, setVideoResult] = useState<VideoAnalysisResult | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
 
   useEffect(() => {
     loadAllEntries().then(setEntries).catch(console.error);
@@ -100,6 +116,20 @@ export default function App() {
     setEntries([]);
   };
 
+  const handleVideoSelected = async (file: File) => {
+    setVideoError(null);
+    setVideoResult(null);
+    setPhase('videoProcessing');
+    try {
+      const result = await analyzeVideoFile(file);
+      setVideoResult(result);
+    } catch (e) {
+      setVideoError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPhase('videoResult');
+    }
+  };
+
   if (phase === 'camera') {
     return <CameraCapture onCapture={handleCapture} onCancel={() => setPhase('select')} />;
   }
@@ -170,6 +200,33 @@ export default function App() {
     );
   }
 
+  if (phase === 'videoUpload') {
+    return <VideoUpload onSelect={handleVideoSelected} onCancel={() => setPhase('select')} />;
+  }
+
+  if (phase === 'videoProcessing') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-3">
+        <div className="w-8 h-8 border-4 border-slate-600 border-t-blue-400 rounded-full animate-spin" />
+        <p className="text-slate-400 text-sm">動画を解析中...（フレーム抽出・位置検出）</p>
+      </div>
+    );
+  }
+
+  if (phase === 'videoResult') {
+    if (videoError || !videoResult) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 gap-4">
+          <p className="text-red-400 text-center">エラー: {videoError}</p>
+          <button onClick={() => setPhase('videoUpload')} className="bg-blue-600 text-white px-6 py-3 rounded-2xl">
+            やり直す
+          </button>
+        </div>
+      );
+    }
+    return <VideoResult result={videoResult} onRetake={() => setPhase('videoUpload')} />;
+  }
+
   // Select phase
   return (
     <div className="min-h-screen flex flex-col bg-slate-900 text-white p-4">
@@ -209,6 +266,16 @@ export default function App() {
               autoDetect ? 'translate-x-5' : 'translate-x-0.5'
             }`}
           />
+        </div>
+      </button>
+
+      <button
+        onClick={() => setPhase('videoUpload')}
+        className="mb-4 flex items-center justify-between rounded-2xl p-3 border bg-slate-800 border-slate-700 hover:border-purple-600 transition-colors text-left"
+      >
+        <div>
+          <p className="text-white text-sm font-semibold">🎥 動画検査モード（検証）</p>
+          <p className="text-slate-400 text-xs mt-0.5">動画をアップロードし、複数の点灯位置と強弱の時間変化を自動検出します</p>
         </div>
       </button>
 

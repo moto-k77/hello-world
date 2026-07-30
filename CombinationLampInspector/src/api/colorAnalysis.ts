@@ -152,21 +152,18 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-export async function analyzeROI(imageDataUrl: string, roi: ROI): Promise<FullAnalysis> {
-  const img = await loadImage(imageDataUrl);
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(img, 0, 0);
-
+// Analyze a ROI on an already-drawn canvas (e.g. a decoded photo, or one of many sampled
+// video frames). Factored out of analyzeROI() so callers that already have pixel data in a
+// canvas (video frame sampling) don't need to re-encode/re-decode a data URL per frame per ROI.
+export function analyzeCanvasRegion(canvas: HTMLCanvasElement, roi: ROI): FullAnalysis {
   const x = Math.max(0, Math.round(roi.x));
   const y = Math.max(0, Math.round(roi.y));
-  const w = Math.min(Math.round(roi.width),  img.naturalWidth  - x);
-  const h = Math.min(Math.round(roi.height), img.naturalHeight - y);
+  const w = Math.min(Math.round(roi.width),  canvas.width  - x);
+  const h = Math.min(Math.round(roi.height), canvas.height - y);
 
   if (w <= 0 || h <= 0) throw new Error('ROIが画像範囲外です');
 
+  const ctx = canvas.getContext('2d')!;
   const { data } = ctx.getImageData(x, y, w, h);
   const { r, g, b, peakLum, pixelCount } = extractTopPixels(data);
 
@@ -182,4 +179,14 @@ export async function analyzeROI(imageDataUrl: string, roi: ROI): Promise<FullAn
     stats,
     predictions: [predictRGB(stats), predictHSV(stats), predictYCbCr(stats)],
   };
+}
+
+export async function analyzeROI(imageDataUrl: string, roi: ROI): Promise<FullAnalysis> {
+  const img = await loadImage(imageDataUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(img, 0, 0);
+  return analyzeCanvasRegion(canvas, roi);
 }
