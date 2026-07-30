@@ -186,7 +186,15 @@ export function VideoResult({ result, videoUrl, onRetake }: Props) {
           return (
             <div
               key={i}
-              className={`absolute border-2 rounded-lg pointer-events-none transition-colors ${borderClass}`}
+              // A lamp classified as '白' (white) — very common for real footage where a strongly
+              // lit lamp clips/blows out the camera sensor to near-white — renders with
+              // border-slate-200, a pale near-white Tailwind shade. Without a dark halo around it,
+              // that border is nearly invisible against the video's own bright/overexposed
+              // regions (exactly where the lamp itself is), making the "live" bounding box appear
+              // to not be there at all. The dark ring (independent of borderClass) guarantees
+              // contrast against any underlying video brightness, same technique already used for
+              // the white playhead marker below in CandidateCard.
+              className={`absolute border-2 rounded-lg pointer-events-none transition-colors shadow-[0_0_0_1px_rgba(0,0,0,0.85)] ${borderClass}`}
               style={{ left: `${left}%`, top: `${top}%`, width: `${w}%`, height: `${h}%` }}
             >
               <span className="absolute -top-5 left-0 text-xs font-bold text-white bg-black/60 px-1.5 py-0.5 rounded whitespace-nowrap">
