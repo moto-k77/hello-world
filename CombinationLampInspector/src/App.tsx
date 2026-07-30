@@ -147,6 +147,33 @@ export default function App() {
     setPhase('videoUpload');
   };
 
+  // Without this, dropping a video file ANYWHERE on the page (the user did this on the top
+  // screen, not just the dedicated upload dropzone) hits the browser's default behavior: it
+  // navigates the tab to the file and plays it, silently abandoning the app. VideoUpload's own
+  // onDrop already preventDefault/stopPropagation()s for drops on its dropzone specifically, but
+  // a drop on any other element (e.g. the 'select' phase, which has no dropzone at all) would
+  // still bubble up to the window and trigger the browser default without this. Listening at the
+  // window level (no capture) catches every drop after any element-level handler has already run,
+  // and calling preventDefault() here only suppresses the browser's default action — it does not
+  // stop the element-level handlers that already ran, so the two layers don't conflict.
+  useEffect(() => {
+    const preventDefault = (e: DragEvent) => e.preventDefault();
+    const handleWindowDrop = (e: DragEvent) => {
+      e.preventDefault();
+      if (phase !== 'select') return;
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('video/')) {
+        handleVideoSelected(file);
+      }
+    };
+    window.addEventListener('dragover', preventDefault);
+    window.addEventListener('drop', handleWindowDrop);
+    return () => {
+      window.removeEventListener('dragover', preventDefault);
+      window.removeEventListener('drop', handleWindowDrop);
+    };
+  }, [phase]);
+
   if (phase === 'camera') {
     return <CameraCapture onCapture={handleCapture} onCancel={() => setPhase('select')} />;
   }

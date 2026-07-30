@@ -6,8 +6,8 @@
 // lights up/dims/changes color at any point during the clip will have a high range even without
 // a clean "baseline" shot, while constant bright backgrounds (factory ceiling lights etc.) stay
 // low-range and are correctly ignored.
-import { analyzeCanvasRegion } from './colorAnalysis';
-import type { ROI, Verdict, LampColor, MethodResult } from './colorAnalysis';
+import { analyzeCanvasRegion, verdictFromLum } from './colorAnalysis';
+import type { ROI, Verdict, LampColor, FullAnalysis, MethodResult } from './colorAnalysis';
 
 export interface SampledFrames {
   timestamps: number[];
@@ -374,29 +374,118 @@ export function detectLampPositions(
 
 // ── per-candidate time series + segment collapsing ──
 
-function majorityVerdict(preds: MethodResult[]): Verdict {
-  const c: Record<Verdict, number> = { 'unlit': 0, 'lit-weak': 0, 'lit-normal': 0, 'lit-strong': 0 };
-  preds.forEach(p => c[p.verdict]++);
-  return Object.entries(c).sort((a, b) => b[1] - a[1])[0][0] as Verdict;
+// Video mode's key advantage over a single photo: the SAME ROI is seen across dozens of frames,
+// so instead of judging "lit or not" against a fixed absolute luminance, we can judge each frame
+// against that ROI's own across-video floor. This matters a lot for real factory footage: the
+// scene is bright and lamp housings/plastic wrap reflect ceiling lights, so an OFF lamp's ROI can
+// still have a high absolute brightness (→ would wrongly read as lit) while its saturation is low
+// (→ reads as 白). Judging relative to the ROI's own baseline instead correctly reads "barely
+// brighter than usual" as 消灯 regardless of how bright the room is.
+//
+// We use stats.topLum (mean of the top-10% brightest pixels), not stats.peakLum (the single
+// brightest pixel), as the baseline/verdict signal. Verified against the real sample clip: an
+// unlit lamp housing wrapped in plastic film has a small specular glint that already drives
+// peakLum to ~225-255, leaving only ~0-30 of headroom before the sensor clips at 255 once the
+// lamp actually lights up — on some ROIs that headroom was *smaller* than any reasonable "is it
+// lit" delta, making peakLum useless for this footage regardless of threshold. topLum is far less
+// dominated by that one hot pixel and tracks how much of the ROI is actually bright, giving a much
+// larger, usable separation between the real off/on states (see PR description for the measured
+// before/after numbers on the sample clip).
+const BASELINE_PERCENTILE = 0.10;
+// D1: minimum rise above baseline before a frame counts as "lit" at all. Tuned against the real
+// sample factory clip (see videoAnalysis test harness) — with topLum, the lamp housing ROI's
+// baseline (10th percentile) sat around 60-90 while lit frames rose to 150-230+, so 30 leaves
+// comfortable margin above sensor/compression noise without also flagging the off frames (whose
+// frame-to-frame topLum jitter was under 10) as weakly lit.
+const BASELINE_LIT_DELTA = 30;
+
+function baselineLum(lums: number[]): number {
+  if (lums.length === 0) return 0;
+  const sorted = [...lums].sort((a, b) => a - b);
+  // A robust "floor", not the absolute min — resists one anomalously dark frame (motion blur,
+  // a bad seek) from dragging the baseline down and making every other frame look "lit".
+  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * BASELINE_PERCENTILE));
+  return sorted[idx];
 }
 
-function majorityColor(preds: MethodResult[]): LampColor | null {
-  const lit = preds.filter(p => p.verdict !== 'unlit' && p.color);
-  if (!lit.length) return null;
-  const c: Record<string, number> = {};
-  lit.forEach(p => { if (p.color) c[p.color] = (c[p.color] ?? 0) + 1; });
-  return Object.entries(c).sort((a, b) => b[1] - a[1])[0][0] as LampColor;
+// Color, ignoring each method's own absolute-threshold verdict — we've already decided lit/unlit
+// ourselves from the baseline-relative luminance, so all that's needed here is which hue the
+// per-method color logic (RGB/HSV/YCbCr, including the clipping-aware bright-pixel selection in
+// extractTopPixels) picked out, not whether that method separately thought the ROI was "lit".
+//
+// When the 3 methods disagree, prefer a chromatic (赤/橙/黄) vote over 白/不明 rather than a plain
+// majority/first-wins tie-break. Verified on the real sample clip: a partially-clipped amber
+// frame had RGB→白, HSV→(no match), YCbCr→橙 — a 1-1 tie that a plain vote resolves to whichever
+// method happens to come first, discarding the one method that actually recovered the hue. 白/不明
+// only mean "no method found a clear hue", which is exactly the known clipping failure mode this
+// whole file exists to work around, so they should never outrank an actual hue match.
+function colorVote(preds: MethodResult[]): LampColor | null {
+  const withColor = preds.filter(p => p.color);
+  if (!withColor.length) return null;
+  const chromatic = withColor.filter(p => p.color !== '白' && p.color !== '不明');
+  const pool = chromatic.length > 0 ? chromatic : withColor;
+  const counts: Record<string, number> = {};
+  pool.forEach(p => { counts[p.color as string] = (counts[p.color as string] ?? 0) + 1; });
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] as LampColor;
+}
+
+// A strongly lit lamp can still clip to near-white at the working 480px resolution even with
+// extractTopPixels' clipping-aware pixel selection, if a given frame's ROI happens to contain too
+// few non-clipped colorful pixels (motion blur, alignment jitter, JPEG-ish compression artifacts
+// mid-video). A lamp doesn't change color mid-lighting, so within each contiguous run of lit
+// frames, treat any frame that reads 白/不明 as a clipping artifact and overwrite it with the
+// run's chromatic (赤/橙/黄) majority color, if the run has one. A run that is genuinely white
+// end-to-end (e.g. a reverse lamp) has no chromatic majority and is left alone.
+function applyTemporalColorFallback(series: FrameSample[]): FrameSample[] {
+  const result = series.slice();
+  let i = 0;
+  while (i < result.length) {
+    if (result[i].verdict === 'unlit') { i++; continue; }
+    let j = i;
+    while (j < result.length && result[j].verdict !== 'unlit') j++;
+
+    const counts: Record<string, number> = {};
+    for (let k = i; k < j; k++) {
+      const c = result[k].color;
+      if (c && c !== '白' && c !== '不明') counts[c] = (counts[c] ?? 0) + 1;
+    }
+    const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    if (ranked.length > 0) {
+      const majorityColor = ranked[0][0] as LampColor;
+      for (let k = i; k < j; k++) {
+        const c = result[k].color;
+        if (!c || c === '白' || c === '不明') {
+          result[k] = { ...result[k], color: majorityColor };
+        }
+      }
+    }
+    i = j;
+  }
+  return result;
 }
 
 function buildSeries(frames: HTMLCanvasElement[], timestamps: number[], roi: ROI): FrameSample[] {
-  return frames.map((canvas, i) => {
+  // Pass 1: raw per-frame stats/predictions (analyzeCanvasRegion already does the clipping-aware
+  // color extraction and per-method hue classification; we just don't trust its absolute verdict).
+  const raw = frames.map((canvas): FullAnalysis | null => {
     try {
-      const { predictions } = analyzeCanvasRegion(canvas, roi);
-      return { timestamp: timestamps[i], verdict: majorityVerdict(predictions), color: majorityColor(predictions) };
+      return analyzeCanvasRegion(canvas, roi);
     } catch {
-      return { timestamp: timestamps[i], verdict: 'unlit' as Verdict, color: null };
+      return null;
     }
   });
+
+  const baseline = baselineLum(raw.filter((r): r is FullAnalysis => r !== null).map(r => r.stats.topLum));
+
+  // Pass 2: classify each frame relative to this ROI's own baseline.
+  const series: FrameSample[] = raw.map((r, i) => {
+    if (!r) return { timestamp: timestamps[i], verdict: 'unlit' as Verdict, color: null };
+    const verdict = verdictFromLum(r.stats.topLum, baseline + BASELINE_LIT_DELTA);
+    const color = verdict === 'unlit' ? null : colorVote(r.predictions);
+    return { timestamp: timestamps[i], verdict, color };
+  });
+
+  return applyTemporalColorFallback(series);
 }
 
 function collapseSegments(series: FrameSample[], duration: number): LampSegment[] {

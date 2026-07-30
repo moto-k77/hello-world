@@ -8,10 +8,9 @@ interface Props {
 export function VideoUpload({ onSelect, onCancel }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+  const acceptFile = (file: File | undefined | null) => {
     if (!file) return;
     if (!file.type.startsWith('video/')) {
       setError('動画ファイルを選択してください');
@@ -19,6 +18,31 @@ export function VideoUpload({ onSelect, onCancel }: Props) {
     }
     setError(null);
     onSelect(file);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    acceptFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    acceptFile(e.dataTransfer.files?.[0]);
   };
 
   return (
@@ -36,11 +60,17 @@ export function VideoUpload({ onSelect, onCancel }: Props) {
       <div className="flex-1 flex flex-col items-center justify-center gap-6">
         <button
           onClick={() => inputRef.current?.click()}
-          className="w-full max-w-xs border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-2xl p-8 flex flex-col items-center gap-3 text-center transition-colors"
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`w-full max-w-xs border-2 border-dashed rounded-2xl p-8 flex flex-col items-center gap-3 text-center transition-colors ${
+            dragActive ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700 hover:border-blue-500'
+          }`}
         >
           <span className="text-4xl">🎬</span>
           <p className="text-slate-300 text-sm font-semibold">動画ファイルを選択</p>
-          <p className="text-slate-500 text-xs">タップしてカメラロールまたは撮影から選択</p>
+          <p className="text-slate-500 text-xs">タップして選択、またはここに動画をドロップ</p>
         </button>
         {error && <p className="text-red-400 text-sm">{error}</p>}
       </div>

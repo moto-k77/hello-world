@@ -11,6 +11,11 @@ export interface RawColorStats {
   hsv: { h: number; s: number; v: number }; // H: 0-360, S/V: 0-100
   ycbcr: { y: number; cb: number; cr: number }; // 0-255
   peakLum: number;
+  // Mean luminance of the top-10% brightest band (see extractTopPixels) — more robust than
+  // peakLum against a single saturated pixel dominating the reading. Used by video mode's
+  // baseline-relative classification; photo-mode UIs are unaffected since they only read the
+  // fields they already used.
+  topLum: number;
   pixelCount: number;
 }
 
@@ -82,10 +87,19 @@ function extractTopPixels(pixels: Uint8ClampedArray) {
   const avgR = colorTop.reduce((s, p) => s + p.r, 0) / colorTop.length;
   const avgG = colorTop.reduce((s, p) => s + p.g, 0) / colorTop.length;
   const avgB = colorTop.reduce((s, p) => s + p.b, 0) / colorTop.length;
-  return { r: avgR, g: avgG, b: avgB, peakLum: entries[0].lum, pixelCount: entries.length };
+  // topLum: mean luminance of the top-10% brightest band, as opposed to peakLum (the single
+  // brightest pixel). A single ROI pixel can be a specular glint (e.g. light reflecting off
+  // plastic wrap on an unlit lamp housing) that's already near-white regardless of the lamp's
+  // real state, leaving peakLum almost no headroom before the sensor clips at 255 once the lamp
+  // actually lights up. Averaging over a small top band is far less dominated by one hot pixel
+  // and tracks how much of the ROI is actually bright, giving video mode's baseline-relative
+  // classification (see videoAnalysis.ts) a usable signal even when peakLum itself is saturated
+  // in both the lit and unlit states.
+  const topLum = top.reduce((s, p) => s + p.lum, 0) / top.length;
+  return { r: avgR, g: avgG, b: avgB, peakLum: entries[0].lum, topLum, pixelCount: entries.length };
 }
 
-function verdictFromLum(lum: number, thresh: number): Verdict {
+export function verdictFromLum(lum: number, thresh: number): Verdict {
   if (lum < thresh) return 'unlit';
   if (lum > thresh + 80) return 'lit-strong';
   if (lum > thresh + 30) return 'lit-normal';
@@ -165,13 +179,14 @@ export function analyzeCanvasRegion(canvas: HTMLCanvasElement, roi: ROI): FullAn
 
   const ctx = canvas.getContext('2d')!;
   const { data } = ctx.getImageData(x, y, w, h);
-  const { r, g, b, peakLum, pixelCount } = extractTopPixels(data);
+  const { r, g, b, peakLum, topLum, pixelCount } = extractTopPixels(data);
 
   const stats: RawColorStats = {
     rgb: { r, g, b },
     hsv: rgbToHsv(r, g, b),
     ycbcr: rgbToYcbcr(r, g, b),
     peakLum,
+    topLum,
     pixelCount,
   };
 
