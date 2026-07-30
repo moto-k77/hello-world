@@ -42,10 +42,19 @@ export default function App() {
   const [diffProcessing, setDiffProcessing] = useState(false);
   const [videoResult, setVideoResult] = useState<VideoAnalysisResult | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoObjectUrl, setVideoObjectUrl] = useState<string | null>(null);
 
   useEffect(() => {
     loadAllEntries().then(setEntries).catch(console.error);
   }, []);
+
+  // Revoke the previous object URL whenever it changes (new video selected / cleared) and on
+  // unmount, so we don't leak blob: URLs as the user tries multiple clips.
+  useEffect(() => {
+    return () => {
+      if (videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
+    };
+  }, [videoObjectUrl]);
 
   const handleSelectLamp = (label: string) => {
     setLampLabel(label);
@@ -119,6 +128,7 @@ export default function App() {
   const handleVideoSelected = async (file: File) => {
     setVideoError(null);
     setVideoResult(null);
+    setVideoObjectUrl(URL.createObjectURL(file));
     setPhase('videoProcessing');
     try {
       const result = await analyzeVideoFile(file);
@@ -128,6 +138,13 @@ export default function App() {
     } finally {
       setPhase('videoResult');
     }
+  };
+
+  const handleVideoRetake = () => {
+    setVideoObjectUrl(null);
+    setVideoResult(null);
+    setVideoError(null);
+    setPhase('videoUpload');
   };
 
   if (phase === 'camera') {
@@ -218,13 +235,13 @@ export default function App() {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 gap-4">
           <p className="text-red-400 text-center">エラー: {videoError}</p>
-          <button onClick={() => setPhase('videoUpload')} className="bg-blue-600 text-white px-6 py-3 rounded-2xl">
+          <button onClick={handleVideoRetake} className="bg-blue-600 text-white px-6 py-3 rounded-2xl">
             やり直す
           </button>
         </div>
       );
     }
-    return <VideoResult result={videoResult} onRetake={() => setPhase('videoUpload')} />;
+    return <VideoResult result={videoResult} videoUrl={videoObjectUrl} onRetake={handleVideoRetake} />;
   }
 
   // Select phase
