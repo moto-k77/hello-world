@@ -16,6 +16,14 @@ export interface RawColorStats {
   // baseline-relative classification; photo-mode UIs are unaffected since they only read the
   // fields they already used.
   topLum: number;
+  // Mean luminance over EVERY pixel of the ROI (not just the top band). A stronger lamp doesn't
+  // make its brightest pixels brighter once the sensor clips (topLum/peakLum ceiling out) — it
+  // makes MORE of the ROI bright (a bigger blown core + halo/bloom around the lens). meanLum
+  // keeps rising with that growing lit area even after topLum has saturated, making it the
+  // clipping-robust signal video mode uses to tell weak/normal/strong apart (see videoAnalysis.ts
+  // buildSeries). Additive field — existing photo-mode consumers only read the fields they
+  // already used and are unaffected.
+  meanLum: number;
   pixelCount: number;
 }
 
@@ -58,10 +66,14 @@ function rgbToYcbcr(r: number, g: number, b: number): { y: number; cb: number; c
 
 function extractTopPixels(pixels: Uint8ClampedArray) {
   const entries: { lum: number; r: number; g: number; b: number }[] = [];
+  let meanLumSum = 0;
   for (let i = 0; i < pixels.length; i += 4) {
     const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
-    entries.push({ lum: r * 0.299 + g * 0.587 + b * 0.114, r, g, b });
+    const lum = r * 0.299 + g * 0.587 + b * 0.114;
+    entries.push({ lum, r, g, b });
+    meanLumSum += lum;
   }
+  const meanLum = entries.length > 0 ? meanLumSum / entries.length : 0;
   entries.sort((a, b) => b.lum - a.lum);
   const topN = Math.max(1, Math.floor(entries.length * 0.1));
   const top = entries.slice(0, topN);
@@ -96,7 +108,7 @@ function extractTopPixels(pixels: Uint8ClampedArray) {
   // classification (see videoAnalysis.ts) a usable signal even when peakLum itself is saturated
   // in both the lit and unlit states.
   const topLum = top.reduce((s, p) => s + p.lum, 0) / top.length;
-  return { r: avgR, g: avgG, b: avgB, peakLum: entries[0].lum, topLum, pixelCount: entries.length };
+  return { r: avgR, g: avgG, b: avgB, peakLum: entries[0].lum, topLum, meanLum, pixelCount: entries.length };
 }
 
 export function verdictFromLum(lum: number, thresh: number): Verdict {
@@ -179,7 +191,7 @@ export function analyzeCanvasRegion(canvas: HTMLCanvasElement, roi: ROI): FullAn
 
   const ctx = canvas.getContext('2d')!;
   const { data } = ctx.getImageData(x, y, w, h);
-  const { r, g, b, peakLum, topLum, pixelCount } = extractTopPixels(data);
+  const { r, g, b, peakLum, topLum, meanLum, pixelCount } = extractTopPixels(data);
 
   const stats: RawColorStats = {
     rgb: { r, g, b },
@@ -187,6 +199,7 @@ export function analyzeCanvasRegion(canvas: HTMLCanvasElement, roi: ROI): FullAn
     ycbcr: rgbToYcbcr(r, g, b),
     peakLum,
     topLum,
+    meanLum,
     pixelCount,
   };
 

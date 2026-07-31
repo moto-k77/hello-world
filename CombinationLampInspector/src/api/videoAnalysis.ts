@@ -415,6 +415,48 @@ function baselineLum(lums: number[]): number {
   return sorted[idx];
 }
 
+// ── intensity: lit AREA (meanLum), not peak/top luminance ──────────────
+//
+// A stronger lamp doesn't make its brightest pixels brighter — the sensor is already clipping
+// them (see topLum/peakLum comments above), so weak and strong states both drive the top-10%
+// band to near-saturation and the old verdictFromLum(topLum, ...) step classifier collapsed them
+// into the same bucket. What actually grows with lamp strength is how much of the ROI is bright:
+// a stronger lamp has a bigger blown-out core and a wider halo/bloom around the lens. meanLum —
+// the mean luminance over EVERY pixel of the ROI — tracks that growing lit area and keeps rising
+// well after topLum has ceilinged out, making it the standard clipping-robust intensity proxy.
+//
+// Note the honest limitation: this is relative to the range observed WITHIN this clip, so a
+// video where the lamp only ever lights weakly will read that state as its "max". That's
+// acceptable for this verification tool — the operator is expected to film the full test
+// sequence including both states — and the MEAN_RANGE_FLOOR guard below prevents a clip where
+// the lamp barely varies at all from having that near-zero range stretched into fake weak/strong
+// swings from pure sensor noise.
+const MEAN_MAX_PERCENTILE = 0.90;
+// Minimum meanLum spread (max-base) within the clip before we trust relative scaling at all.
+// Below this the lamp essentially doesn't vary in this clip (or only ever shows one state) and
+// treating tiny fluctuations as meaningful weak/strong swings would just amplify noise.
+const MEAN_RANGE_FLOOR = 15;
+// Tuned against the real sample clip's measured meanLum-based rel values (see PR/commit body for
+// the full per-frame dump): the red lamp's weak phase (~3.3-5.0s) sits at rel 0.42-0.52, its
+// strong phase (~7.4-14.1s) mostly sits at rel 0.65-1.47 (one brief ~0.24s transient frame right
+// at the on-transition dips to ~0.45 — a real ramp-up, not misclassification), and the amber lamp
+// (single steady-on state) sits at rel 0.62-1.06 throughout, comfortably above REL_WEAK_MAX so it
+// doesn't flap into "weak" — only its very first on-transition frame briefly reads lower. A wider
+// gap here (vs. the initially-tried 0.45/0.75) was needed because "strong" isn't a flat plateau —
+// it keeps climbing as the blown core/halo grows — so a high strong threshold left much of the
+// genuinely-strong phase reading merely "normal".
+const REL_WEAK_MAX = 0.55;
+const REL_STRONG_MIN = 0.60;
+
+function robustMax(lums: number[]): number {
+  if (lums.length === 0) return 0;
+  const sorted = [...lums].sort((a, b) => a - b);
+  // Robust "ceiling", not the absolute max — resists one anomalously bright glitch frame from
+  // inflating the range and compressing every other frame's rel toward 0.
+  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * MEAN_MAX_PERCENTILE));
+  return sorted[idx];
+}
+
 // Color, ignoring each method's own absolute-threshold verdict — we've already decided lit/unlit
 // ourselves from the baseline-relative luminance, so all that's needed here is which hue the
 // per-method color logic (RGB/HSV/YCbCr, including the clipping-aware bright-pixel selection in
@@ -436,39 +478,90 @@ function colorVote(preds: MethodResult[]): LampColor | null {
   return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] as LampColor;
 }
 
-// A strongly lit lamp can still clip to near-white at the working 480px resolution even with
-// extractTopPixels' clipping-aware pixel selection, if a given frame's ROI happens to contain too
-// few non-clipped colorful pixels (motion blur, alignment jitter, JPEG-ish compression artifacts
-// mid-video). A lamp doesn't change color mid-lighting, so within each contiguous run of lit
-// frames, treat any frame that reads 白/不明 as a clipping artifact and overwrite it with the
-// run's chromatic (赤/橙/黄) majority color, if the run has one. A run that is genuinely white
-// end-to-end (e.g. a reverse lamp) has no chromatic majority and is left alone.
-function applyTemporalColorFallback(series: FrameSample[]): FrameSample[] {
-  const result = series.slice();
-  let i = 0;
-  while (i < result.length) {
-    if (result[i].verdict === 'unlit') { i++; continue; }
-    let j = i;
-    while (j < result.length && result[j].verdict !== 'unlit') j++;
+// A physical lamp has ONE color — the ROI editor's whole premise is one box per lamp — so instead
+// of a per-frame color (previously patched up post-hoc by a per-run fallback when clipping made a
+// frame read 白/不明), we decide ONE color for the whole ROI and apply it to every lit frame.
+//
+// A strongly lit lamp clips toward white/orange (loses hue), while a weakly lit lamp's true hue
+// survives (see the module-level problem description: the real sample's red lamp reads 赤 while
+// weak and 橙/白 while strong-and-blown-out). So we want the LEAST-clipped frames' hue vote — but
+// "least clipped" needs to be judged per lit CYCLE (contiguous run of lit frames = one physical
+// on-period), not by pooling every lit frame in the whole clip and taking the dimmest N%.
+//
+// Measured on the real sample clip: pooling by raw brightness (whether ranked by topLum or by
+// meanLum) doesn't work, because the STRONG phase itself has transient dips — a frame or two
+// mid-run reading meaningfully dimmer than the plateau around it (auto-exposure/bloom
+// fluctuation, or just motion-blur-adjacent frames) — that are still fully within the
+// strong/clipped-orange on-period, not the lamp's real weak state. Pooled by raw per-frame
+// brightness, those dip frames were dim enough to crowd into the "least clipped" sample right
+// alongside the genuinely weak on-period's frames, diluting or outright flipping the vote to 橙.
+//
+// Grouping by lit RUN first sidesteps this entirely: average each run's meanLum, and trust only
+// the single dimmest run's own per-frame hue votes. A transient dip mid-strong-run pulls that
+// run's own average down only slightly (it's outnumbered by the rest of the plateau within the
+// same run) — nowhere near the runs where the lamp is actually, sustainedly, dim. If the ROI only
+// ever has one lit run (e.g. the amber lamp here — on once, steady, off once), that run trivially
+// "wins" and its own full-run majority is used, which is just a stable, large-sample vote.
+function isChromatic(c: LampColor | null): c is LampColor {
+  return c !== null && c !== '白' && c !== '不明';
+}
 
-    const counts: Record<string, number> = {};
-    for (let k = i; k < j; k++) {
-      const c = result[k].color;
-      if (c && c !== '白' && c !== '不明') counts[c] = (counts[c] ?? 0) + 1;
-    }
-    const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    if (ranked.length > 0) {
-      const majorityColor = ranked[0][0] as LampColor;
-      for (let k = i; k < j; k++) {
-        const c = result[k].color;
-        if (!c || c === '白' || c === '不明') {
-          result[k] = { ...result[k], color: majorityColor };
-        }
-      }
-    }
-    i = j;
+function chromaticMajority(frames: { color: LampColor | null }[]): LampColor | null {
+  const counts: Record<string, number> = {};
+  for (const f of frames) {
+    if (isChromatic(f.color)) counts[f.color] = (counts[f.color] ?? 0) + 1;
   }
-  return result;
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return ranked.length > 0 ? (ranked[0][0] as LampColor) : null;
+}
+
+// sampleFramesFromVideo's seekTo() has an 800ms stale-frame fallback for browsers/codecs where
+// the 'seeked' event doesn't reliably fire — when that triggers, several consecutive nominal
+// timestamps can end up holding bit-identical decoded pixels (same exact RGB). Left alone, that
+// single stale frame would be counted several times over in both a run's average brightness and
+// its majority hue vote, letting one seek hiccup out-weight genuinely distinct frames. Collapse
+// runs of exactly-identical consecutive frames to one before either computation.
+function dedupeStaleFrames<T extends { r: number; g: number; b: number }>(frames: T[]): T[] {
+  const out: T[] = [];
+  for (const f of frames) {
+    const prev = out[out.length - 1];
+    if (prev && prev.r === f.r && prev.g === f.g && prev.b === f.b) continue;
+    out.push(f);
+  }
+  return out;
+}
+
+type ColorVoteFrame = { meanLum: number; color: LampColor | null; r: number; g: number; b: number };
+
+function average(nums: number[]): number {
+  return nums.length === 0 ? 0 : nums.reduce((s, n) => s + n, 0) / nums.length;
+}
+
+// Decide the single color for a ROI from its lit runs (each a contiguous stretch of lit frames —
+// see the comment above for why we group by run rather than pooling every lit frame in the clip).
+// Returns null only if the ROI has no lit frames anywhere.
+function decideRoiColor(litRunsChrono: ColorVoteFrame[][]): LampColor | null {
+  const runs = litRunsChrono.map(dedupeStaleFrames).filter(r => r.length > 0);
+  if (runs.length === 0) return null;
+  const allFrames = runs.flat();
+  // If literally no lit frame ever recovered a chromatic hue, this is a genuinely white lamp
+  // (e.g. a reverse light) rather than a clipping artifact — 白 for the whole ROI.
+  if (!allFrames.some(f => isChromatic(f.color))) return '白';
+
+  let dimmestRun = runs[0];
+  let dimmestAvg = average(dimmestRun.map(f => f.meanLum));
+  for (const run of runs.slice(1)) {
+    const runAvg = average(run.map(f => f.meanLum));
+    if (runAvg < dimmestAvg) {
+      dimmestRun = run;
+      dimmestAvg = runAvg;
+    }
+  }
+
+  // Fall back to every lit frame across all runs if the dimmest run itself happens to have no
+  // chromatic vote (e.g. a hot alignment glitch throughout that one run) — better than reporting
+  // 白 when some other run clearly saw the hue.
+  return chromaticMajority(dimmestRun) ?? chromaticMajority(allFrames) ?? '白';
 }
 
 function buildSeries(frames: HTMLCanvasElement[], timestamps: number[], roi: ROI): FrameSample[] {
@@ -482,17 +575,70 @@ function buildSeries(frames: HTMLCanvasElement[], timestamps: number[], roi: ROI
     }
   });
 
-  const baseline = baselineLum(raw.filter((r): r is FullAnalysis => r !== null).map(r => r.stats.topLum));
+  const validRaw = raw.filter((r): r is FullAnalysis => r !== null);
+  const baseline = baselineLum(validRaw.map(r => r.stats.topLum));
+  const meanBase = baselineLum(validRaw.map(r => r.stats.meanLum));
+  const meanMax = robustMax(validRaw.map(r => r.stats.meanLum));
+  const meanRange = meanMax - meanBase;
 
-  // Pass 2: classify each frame relative to this ROI's own baseline.
-  const series: FrameSample[] = raw.map((r, i) => {
-    if (!r) return { timestamp: timestamps[i], verdict: 'unlit' as Verdict, color: null };
-    const verdict = verdictFromLum(r.stats.topLum, baseline + BASELINE_LIT_DELTA);
-    const color = verdict === 'unlit' ? null : colorVote(r.predictions);
-    return { timestamp: timestamps[i], verdict, color };
+  // Pass 2: per-frame lit/unlit GATE (unchanged — verified accurate for on/off transitions to
+  // ~0.2s), intensity verdict from the baseline-normalized meanLum signal (area-based,
+  // clipping-robust — see MEAN_RANGE_FLOOR/REL_* comments above, instead of topLum's absolute
+  // steps which collapsed weak/strong into the same bucket once topLum itself saturated), and
+  // this frame's own hue vote — all kept separate from the ROI-wide color decision in pass 3.
+  const perFrame = raw.map((r, i) => {
+    if (!r) {
+      return {
+        timestamp: timestamps[i], lit: false, verdict: 'unlit' as Verdict,
+        meanLum: 0, color: null as LampColor | null, r: 0, g: 0, b: 0,
+      };
+    }
+    const gate = verdictFromLum(r.stats.topLum, baseline + BASELINE_LIT_DELTA);
+    const lit = gate !== 'unlit';
+    let verdict: Verdict = 'unlit';
+    if (lit) {
+      if (meanRange < MEAN_RANGE_FLOOR) {
+        // Lamp doesn't meaningfully vary in this clip (or only ever shows one state) — relative
+        // scaling would just be noise amplification, so treat every lit frame as normal.
+        verdict = 'lit-normal';
+      } else {
+        const rel = (r.stats.meanLum - meanBase) / meanRange;
+        if (rel < REL_WEAK_MAX) verdict = 'lit-weak';
+        else if (rel > REL_STRONG_MIN) verdict = 'lit-strong';
+        else verdict = 'lit-normal';
+      }
+    }
+    return {
+      timestamp: timestamps[i],
+      lit,
+      verdict,
+      meanLum: r.stats.meanLum,
+      color: colorVote(r.predictions),
+      r: r.stats.rgb.r,
+      g: r.stats.rgb.g,
+      b: r.stats.rgb.b,
+    };
   });
 
-  return applyTemporalColorFallback(series);
+  // Pass 3: one color for the whole ROI, from its dimmest lit run (see decideRoiColor).
+  const litRuns: ColorVoteFrame[][] = [];
+  let currentRun: ColorVoteFrame[] = [];
+  for (const f of perFrame) {
+    if (f.lit) {
+      currentRun.push({ meanLum: f.meanLum, color: f.color, r: f.r, g: f.g, b: f.b });
+    } else if (currentRun.length > 0) {
+      litRuns.push(currentRun);
+      currentRun = [];
+    }
+  }
+  if (currentRun.length > 0) litRuns.push(currentRun);
+  const roiColor = decideRoiColor(litRuns);
+
+  return perFrame.map((f): FrameSample => ({
+    timestamp: f.timestamp,
+    verdict: f.verdict,
+    color: f.lit ? roiColor : null,
+  }));
 }
 
 function collapseSegments(series: FrameSample[], duration: number): LampSegment[] {
