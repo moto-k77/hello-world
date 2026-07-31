@@ -37,7 +37,9 @@ export interface LampSegment {
 
 export interface VideoCandidateResult {
   roi: ROI;
-  rangeScore: number;
+  // Undefined for manually-placed/edited ROIs (VideoRoiEditor) — there's no "range across frames"
+  // score for a box the user just drew, only for the auto-detector's candidates.
+  rangeScore?: number;
   series: FrameSample[];
   segments: LampSegment[];
 }
@@ -48,6 +50,11 @@ export interface VideoAnalysisResult {
   height: number;
   duration: number;
   candidates: VideoCandidateResult[];
+  // The sampled frames used to produce `candidates`, kept around so the ROI editor can re-run
+  // classification (classifyRois) on user-edited boxes without re-decoding the video. App.tsx
+  // also stashes this in its own state and nulls it out on retake so the ~60 in-memory canvases
+  // can be GC'd once a session ends.
+  sampled: SampledFrames;
 }
 
 // ── frame sampling ──────────────────────────────────────────
@@ -510,10 +517,25 @@ function collapseSegments(series: FrameSample[], duration: number): LampSegment[
   return segments;
 }
 
+// Re-run classification for a set of (possibly user-edited) ROIs against already-sampled frames —
+// no re-decoding of the video needed. Used by VideoRoiEditor's confirm step: the user moves/
+// resizes/adds/deletes boxes over the existing reference frame, and we just re-run buildSeries +
+// collapseSegments per box against the SampledFrames already held in memory from the initial
+// analyzeVideoFile() pass.
+export function classifyRois(sampled: SampledFrames, rois: ROI[]): VideoCandidateResult[] {
+  const { frames, timestamps, duration } = sampled;
+  return rois.map((roi): VideoCandidateResult => {
+    const series = buildSeries(frames, timestamps, roi);
+    const segments = collapseSegments(series, duration);
+    return { roi, series, segments };
+  });
+}
+
 // ── top-level orchestrator ──
 
 export async function analyzeVideoFile(file: File, targetFps = 5): Promise<VideoAnalysisResult> {
-  const { timestamps, frames, width, height, duration } = await sampleFramesFromVideo(file, targetFps);
+  const sampled = await sampleFramesFromVideo(file, targetFps);
+  const { timestamps, frames, width, height, duration } = sampled;
   if (frames.length === 0) throw new Error('動画からフレームを取得できませんでした');
 
   const positions = detectLampPositions(frames, width, height);
@@ -526,5 +548,5 @@ export async function analyzeVideoFile(file: File, targetFps = 5): Promise<Video
   const refIndex = Math.floor(frames.length / 2);
   const referenceFrameDataUrl = frames[refIndex].toDataURL('image/jpeg', 0.9);
 
-  return { referenceFrameDataUrl, width, height, duration, candidates };
+  return { referenceFrameDataUrl, width, height, duration, candidates, sampled };
 }

@@ -8,12 +8,13 @@ import { VerificationResult } from './components/VerificationResult';
 import { AccuracyReport } from './components/AccuracyReport';
 import { VideoUpload } from './components/VideoUpload';
 import { VideoResult } from './components/VideoResult';
+import { VideoRoiEditor } from './components/VideoRoiEditor';
 import { analyzeROI } from './api/colorAnalysis';
 import type { ROI, FullAnalysis } from './api/colorAnalysis';
 import { detectDiffRegions } from './api/diffDetection';
 import type { DiffCandidate } from './api/diffDetection';
-import { analyzeVideoFile } from './api/videoAnalysis';
-import type { VideoAnalysisResult } from './api/videoAnalysis';
+import { analyzeVideoFile, classifyRois } from './api/videoAnalysis';
+import type { VideoAnalysisResult, SampledFrames } from './api/videoAnalysis';
 import type { VerificationEntry, GroundTruth } from './types';
 import type { MethodResult } from './api/colorAnalysis';
 import { saveEntry, loadAllEntries, deleteEntry, clearAllEntries } from './storage/db';
@@ -28,7 +29,8 @@ type Phase =
   | 'report'
   | 'videoUpload'
   | 'videoProcessing'
-  | 'videoResult';
+  | 'videoResult'
+  | 'videoRoiEdit';
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('select');
@@ -43,6 +45,11 @@ export default function App() {
   const [videoResult, setVideoResult] = useState<VideoAnalysisResult | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoObjectUrl, setVideoObjectUrl] = useState<string | null>(null);
+  // Sampled frames from the current video, kept alive so the ROI editor can re-classify edited
+  // boxes without re-decoding. Dropped (→ null) on retake/new upload so the ~60 in-memory canvases
+  // can be garbage collected once a session ends.
+  const [sampledFrames, setSampledFrames] = useState<SampledFrames | null>(null);
+  const [editorInitialRois, setEditorInitialRois] = useState<ROI[]>([]);
 
   useEffect(() => {
     loadAllEntries().then(setEntries).catch(console.error);
@@ -128,11 +135,13 @@ export default function App() {
   const handleVideoSelected = async (file: File) => {
     setVideoError(null);
     setVideoResult(null);
+    setSampledFrames(null);
     setVideoObjectUrl(URL.createObjectURL(file));
     setPhase('videoProcessing');
     try {
       const result = await analyzeVideoFile(file);
       setVideoResult(result);
+      setSampledFrames(result.sampled);
     } catch (e) {
       setVideoError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -144,7 +153,23 @@ export default function App() {
     setVideoObjectUrl(null);
     setVideoResult(null);
     setVideoError(null);
+    setSampledFrames(null);
     setPhase('videoUpload');
+  };
+
+  const handleEditRois = (rois: ROI[]) => {
+    setEditorInitialRois(rois);
+    setPhase('videoRoiEdit');
+  };
+
+  const handleRoiEditConfirm = (rois: ROI[]) => {
+    if (!sampledFrames || !videoResult) {
+      setPhase('videoResult');
+      return;
+    }
+    const candidates = classifyRois(sampledFrames, rois);
+    setVideoResult({ ...videoResult, candidates });
+    setPhase('videoResult');
   };
 
   // Without this, dropping a video file ANYWHERE on the page (the user did this on the top
@@ -268,7 +293,27 @@ export default function App() {
         </div>
       );
     }
-    return <VideoResult result={videoResult} videoUrl={videoObjectUrl} onRetake={handleVideoRetake} />;
+    return (
+      <VideoResult
+        result={videoResult}
+        videoUrl={videoObjectUrl}
+        onRetake={handleVideoRetake}
+        onEditRois={handleEditRois}
+      />
+    );
+  }
+
+  if (phase === 'videoRoiEdit' && videoResult) {
+    return (
+      <VideoRoiEditor
+        referenceFrameDataUrl={videoResult.referenceFrameDataUrl}
+        width={videoResult.width}
+        height={videoResult.height}
+        initialRois={editorInitialRois}
+        onConfirm={handleRoiEditConfirm}
+        onCancel={() => setPhase('videoResult')}
+      />
+    );
   }
 
   // Select phase

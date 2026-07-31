@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import type { VideoAnalysisResult, VideoCandidateResult, LampSegment } from '../api/videoAnalysis';
-import type { Verdict, LampColor } from '../api/colorAnalysis';
+import type { Verdict, LampColor, ROI } from '../api/colorAnalysis';
 
 interface Props {
   result: VideoAnalysisResult;
   videoUrl: string | null;
   onRetake: () => void;
+  onEditRois: (rois: ROI[]) => void;
 }
 
 const COLOR_STYLE: Record<string, string> = {
@@ -82,7 +83,8 @@ function CandidateCard({
       <div className="flex items-center justify-between">
         <p className="text-sm font-bold text-white">位置{index + 1}</p>
         <p className="text-xs text-slate-500 font-mono">
-          {Math.round(roi.width)}×{Math.round(roi.height)} / 変化量 {rangeScore.toFixed(0)}
+          {Math.round(roi.width)}×{Math.round(roi.height)}
+          {rangeScore !== undefined ? ` / 変化量 ${rangeScore.toFixed(0)}` : ' / 手動'}
         </p>
       </div>
 
@@ -115,7 +117,7 @@ function CandidateCard({
   );
 }
 
-export function VideoResult({ result, videoUrl, onRetake }: Props) {
+export function VideoResult({ result, videoUrl, onRetake, onEditRois }: Props) {
   const { referenceFrameDataUrl, width, height, candidates } = result;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -139,6 +141,12 @@ export function VideoResult({ result, videoUrl, onRetake }: Props) {
           <br />
           ランプ全体が映るよう、点灯の変化がある動画で撮り直してください。
         </p>
+        <button
+          onClick={() => onEditRois([])}
+          className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-2xl font-bold"
+        >
+          枠を手動で設定する
+        </button>
         <button onClick={onRetake} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold">
           撮り直す
         </button>
@@ -152,6 +160,13 @@ export function VideoResult({ result, videoUrl, onRetake }: Props) {
         <h2 className="text-lg font-bold">🎥 動画検査結果</h2>
         <button onClick={onRetake} className="text-xs text-slate-400 underline">撮り直す</button>
       </div>
+
+      <button
+        onClick={() => onEditRois(candidates.map(c => c.roi))}
+        className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2.5 rounded-2xl transition-colors text-sm"
+      >
+        ✏️ 判定枠を編集
+      </button>
 
       <p className="text-slate-400 text-xs leading-relaxed">
         明るさが変化した箇所を{candidates.length}件検出しました。動画を再生・シークすると、枠の色とラベルがその時点の判定に合わせて変化します。
