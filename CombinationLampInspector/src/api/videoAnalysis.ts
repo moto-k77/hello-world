@@ -436,17 +436,35 @@ const MEAN_MAX_PERCENTILE = 0.90;
 // Below this the lamp essentially doesn't vary in this clip (or only ever shows one state) and
 // treating tiny fluctuations as meaningful weak/strong swings would just amplify noise.
 const MEAN_RANGE_FLOOR = 15;
-// Tuned against the real sample clip's measured meanLum-based rel values (see PR/commit body for
-// the full per-frame dump): the red lamp's weak phase (~3.3-5.0s) sits at rel 0.42-0.52, its
-// strong phase (~7.4-14.1s) mostly sits at rel 0.65-1.47 (one brief ~0.24s transient frame right
-// at the on-transition dips to ~0.45 — a real ramp-up, not misclassification), and the amber lamp
-// (single steady-on state) sits at rel 0.62-1.06 throughout, comfortably above REL_WEAK_MAX so it
-// doesn't flap into "weak" — only its very first on-transition frame briefly reads lower. A wider
-// gap here (vs. the initially-tried 0.45/0.75) was needed because "strong" isn't a flat plateau —
-// it keeps climbing as the blown core/halo grows — so a high strong threshold left much of the
-// genuinely-strong phase reading merely "normal".
-const REL_WEAK_MAX = 0.55;
-const REL_STRONG_MIN = 0.60;
+// ── intensity stability: median smoothing + hysteresis ─────────────────
+//
+// A real user's factory clip (14s, red/orange lamp with a genuine weak→strong→weak sequence)
+// exposed two problems with the original single-pass "two hard cut-points" classifier
+// (REL_WEAK_MAX=0.55 / REL_STRONG_MIN=0.60 — a near-zero-width "normal" band): the strong plateau
+// was interrupted by 0.2-0.3s slivers reading 弱/中 wherever the per-frame rel value's ordinary
+// frame-to-frame noise happened to dip across the boundary, e.g. 2.2-4.1s 橙強 → 4.1-4.3s 橙中 →
+// 4.3-11.5s 橙強. Two mechanisms fix this without touching the lit/unlit gate or per-ROI color
+// logic (both verified-good):
+//
+// 1. Median-of-3 smoothing over each lit RUN's own chronological rel series (window shrinks to 2
+//    at a run's first/last frame; never smooths across an unlit gap, which would smear two
+//    distinct on-cycles together) — a single-frame dip/spike mid-plateau can no longer flip the
+//    label on its own, since it gets outvoted by its two neighbors.
+// 2. Hysteresis instead of two hard cut-points: the classifier tracks a running state (strong/
+//    normal/weak) per lit run and requires crossing a wider ENTER threshold to newly declare
+//    strong/weak, but only a nearer LEAVE threshold to fall back out of it — so noise that
+//    oscillates near a single cut-point can no longer repeatedly flip the label back and forth.
+//
+// Tuned against the real user clip's measured meanLum-based rel values (see PR/commit body for
+// the full per-frame dump): the red lamp's genuine weak phase (~1.9-5.0s window per the user's
+// own result) sits at rel ~0.42-0.52, its genuine strong phase (~4.3-11.5s) sits at rel
+// ~0.65-1.47, and its dimmer trailing tail (~12.0-14.1s) sits back down in the weak band. The
+// amber lamp (single steady-on state) sits at rel ~0.62-1.06 throughout, safely inside the
+// "stay strong" hysteresis zone once entered.
+const REL_ENTER_STRONG = 0.65; // must reach this to newly become strong from normal/weak
+const REL_LEAVE_STRONG = 0.55; // must fall below this to leave strong (else stays strong)
+const REL_ENTER_WEAK = 0.45;   // must drop to this to newly become weak from normal/strong
+const REL_LEAVE_WEAK = 0.52;   // must rise above this to leave weak (else stays weak)
 
 function robustMax(lums: number[]): number {
   if (lums.length === 0) return 0;
@@ -564,6 +582,109 @@ function decideRoiColor(litRunsChrono: ColorVoteFrame[][]): LampColor | null {
   return chromaticMajority(dimmestRun) ?? chromaticMajority(allFrames) ?? '白';
 }
 
+function medianOf3ish(vals: number[]): number {
+  const sorted = [...vals].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  // Odd window (the normal 3-wide case): plain middle value. Even window (2-wide, only at a lit
+  // run's very first/last frame where the window shrinks) has no single middle — average the two.
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+// Median-smooth a lit run's own chronological rel series with a 3-wide window (shrinking to 2 at
+// the run's edges). Never called across an unlit gap — see REL_* comments above.
+function medianSmoothRun(rels: number[]): number[] {
+  return rels.map((_, i) => {
+    const lo = Math.max(0, i - 1);
+    const hi = Math.min(rels.length - 1, i + 1);
+    return medianOf3ish(rels.slice(lo, hi + 1));
+  });
+}
+
+type IntensityState = 'strong' | 'normal' | 'weak';
+
+// Hysteresis state machine over one lit run's smoothed rel series — see REL_ENTER_*/REL_LEAVE_*
+// comments above for the mechanism and tuned values. The first frame has no prior state to hold
+// onto, so it's classified with the (wider) ENTER thresholds directly.
+function hysteresisStates(rels: number[]): IntensityState[] {
+  const states: IntensityState[] = [];
+  let state: IntensityState = 'normal';
+  rels.forEach((rel, i) => {
+    if (i === 0) {
+      if (rel >= REL_ENTER_STRONG) state = 'strong';
+      else if (rel <= REL_ENTER_WEAK) state = 'weak';
+      else state = 'normal';
+    } else if (state === 'strong') {
+      if (rel < REL_LEAVE_STRONG) state = rel <= REL_ENTER_WEAK ? 'weak' : 'normal';
+    } else if (state === 'weak') {
+      if (rel > REL_LEAVE_WEAK) state = rel >= REL_ENTER_STRONG ? 'strong' : 'normal';
+    } else {
+      if (rel >= REL_ENTER_STRONG) state = 'strong';
+      else if (rel <= REL_ENTER_WEAK) state = 'weak';
+    }
+    states.push(state);
+  });
+  return states;
+}
+
+function intensityStateToVerdict(state: IntensityState): Verdict {
+  if (state === 'strong') return 'lit-strong';
+  if (state === 'weak') return 'lit-weak';
+  return 'lit-normal';
+}
+
+// Same-color short-segment absorption (safety net applied after collapseSegments, in the one
+// place both analyzeVideoFile and classifyRois share). Even with median smoothing + hysteresis,
+// a run's rel can still occasionally hover long enough near a LEAVE threshold to produce a short
+// (but real, not single-frame) intensity segment. Any LIT segment shorter than minDuration whose
+// same-color LIT neighbor(s) exist gets absorbed into the longer of those neighbors (re-labeling
+// its verdict/color to match) — repeated until stable, then adjacent segments that end up
+// identical are coalesced. Deliberately never touches unlit segments or crosses a lit/unlit
+// boundary: turn-signal blinking (~0.35s on/off cycles) must pass through completely untouched,
+// since this only removes intensity flapping WITHIN a continuously-lit run.
+export function absorbShortLitSegments(segments: LampSegment[], minDuration = 0.5): LampSegment[] {
+  const segs = segments.map(s => ({ ...s }));
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      if (s.verdict === 'unlit') continue;
+      if (s.endTime - s.startTime >= minDuration) continue;
+
+      const left = i > 0 ? segs[i - 1] : undefined;
+      const right = i < segs.length - 1 ? segs[i + 1] : undefined;
+      const leftOk = !!left && left.verdict !== 'unlit' && left.color === s.color;
+      const rightOk = !!right && right.verdict !== 'unlit' && right.color === s.color;
+      if (!leftOk && !rightOk) continue;
+
+      const leftDur = leftOk ? left!.endTime - left!.startTime : -1;
+      const rightDur = rightOk ? right!.endTime - right!.startTime : -1;
+      if (leftDur >= rightDur) {
+        left!.endTime = s.endTime;
+      } else {
+        right!.startTime = s.startTime;
+      }
+      segs.splice(i, 1);
+      changed = true;
+      break; // indices shifted — restart the scan
+    }
+  }
+
+  // Absorption can leave two now-identical (verdict+color) lit segments directly adjacent
+  // (their formerly-distinguishing middle segment is gone) — coalesce those too.
+  const merged: LampSegment[] = [];
+  for (const s of segs) {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.verdict === s.verdict && prev.color === s.color) {
+      prev.endTime = s.endTime;
+    } else {
+      merged.push({ ...s });
+    }
+  }
+  return merged;
+}
+
 function buildSeries(frames: HTMLCanvasElement[], timestamps: number[], roi: ROI): FrameSample[] {
   // Pass 1: raw per-frame stats/predictions (analyzeCanvasRegion already does the clipping-aware
   // color extraction and per-method hue classification; we just don't trust its absolute verdict).
@@ -581,44 +702,61 @@ function buildSeries(frames: HTMLCanvasElement[], timestamps: number[], roi: ROI
   const meanMax = robustMax(validRaw.map(r => r.stats.meanLum));
   const meanRange = meanMax - meanBase;
 
-  // Pass 2: per-frame lit/unlit GATE (unchanged — verified accurate for on/off transitions to
-  // ~0.2s), intensity verdict from the baseline-normalized meanLum signal (area-based,
-  // clipping-robust — see MEAN_RANGE_FLOOR/REL_* comments above, instead of topLum's absolute
-  // steps which collapsed weak/strong into the same bucket once topLum itself saturated), and
-  // this frame's own hue vote — all kept separate from the ROI-wide color decision in pass 3.
-  const perFrame = raw.map((r, i) => {
+  // Pass 2a: per-frame lit/unlit GATE (unchanged — verified accurate for on/off transitions to
+  // ~0.2s) plus the raw ingredients (meanLum, rel, hue vote) intensity/color need downstream.
+  const base = raw.map((r, i) => {
     if (!r) {
-      return {
-        timestamp: timestamps[i], lit: false, verdict: 'unlit' as Verdict,
-        meanLum: 0, color: null as LampColor | null, r: 0, g: 0, b: 0,
-      };
+      return { timestamp: timestamps[i], lit: false, meanLum: 0, rel: 0, color: null as LampColor | null, r: 0, g: 0, b: 0 };
     }
     const gate = verdictFromLum(r.stats.topLum, baseline + BASELINE_LIT_DELTA);
     const lit = gate !== 'unlit';
-    let verdict: Verdict = 'unlit';
-    if (lit) {
-      if (meanRange < MEAN_RANGE_FLOOR) {
-        // Lamp doesn't meaningfully vary in this clip (or only ever shows one state) — relative
-        // scaling would just be noise amplification, so treat every lit frame as normal.
-        verdict = 'lit-normal';
-      } else {
-        const rel = (r.stats.meanLum - meanBase) / meanRange;
-        if (rel < REL_WEAK_MAX) verdict = 'lit-weak';
-        else if (rel > REL_STRONG_MIN) verdict = 'lit-strong';
-        else verdict = 'lit-normal';
-      }
-    }
+    const rel = meanRange > 0 ? (r.stats.meanLum - meanBase) / meanRange : 0;
     return {
       timestamp: timestamps[i],
       lit,
-      verdict,
       meanLum: r.stats.meanLum,
+      rel,
       color: colorVote(r.predictions),
       r: r.stats.rgb.r,
       g: r.stats.rgb.g,
       b: r.stats.rgb.b,
     };
   });
+
+  // Pass 2b: intensity verdict from the baseline-normalized meanLum signal (area-based,
+  // clipping-robust — see MEAN_RANGE_FLOOR/REL_* comments above, instead of topLum's absolute
+  // steps which collapsed weak/strong into the same bucket once topLum itself saturated).
+  // Computed per lit RUN (contiguous stretch of `lit` frames) so median smoothing never smears
+  // across an unlit gap and hysteresis state resets cleanly for each new on-cycle.
+  const intensity: Verdict[] = base.map(() => 'unlit');
+  if (meanRange >= MEAN_RANGE_FLOOR) {
+    let i = 0;
+    while (i < base.length) {
+      if (!base[i].lit) { i++; continue; }
+      let j = i;
+      while (j < base.length && base[j].lit) j++;
+      const runRel = base.slice(i, j).map(f => f.rel);
+      const smoothed = medianSmoothRun(runRel);
+      const states = hysteresisStates(smoothed);
+      states.forEach((state, k) => { intensity[i + k] = intensityStateToVerdict(state); });
+      i = j;
+    }
+  } else {
+    // Lamp doesn't meaningfully vary in this clip (or only ever shows one state) — relative
+    // scaling would just be noise amplification, so treat every lit frame as normal.
+    base.forEach((f, i) => { if (f.lit) intensity[i] = 'lit-normal'; });
+  }
+
+  const perFrame = base.map((f, i) => ({
+    timestamp: f.timestamp,
+    lit: f.lit,
+    verdict: intensity[i],
+    meanLum: f.meanLum,
+    color: f.color,
+    r: f.r,
+    g: f.g,
+    b: f.b,
+  }));
 
   // Pass 3: one color for the whole ROI, from its dimmest lit run (see decideRoiColor).
   const litRuns: ColorVoteFrame[][] = [];
@@ -660,7 +798,9 @@ function collapseSegments(series: FrameSample[], duration: number): LampSegment[
     }
     if (cur) prev = cur;
   }
-  return segments;
+  // Shared by both analyzeVideoFile and classifyRois (the only two callers of collapseSegments) —
+  // see absorbShortLitSegments for why this safety-net pass runs here.
+  return absorbShortLitSegments(segments);
 }
 
 // Re-run classification for a set of (possibly user-edited) ROIs against already-sampled frames —

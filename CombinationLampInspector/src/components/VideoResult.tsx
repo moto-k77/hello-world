@@ -74,6 +74,7 @@ function CandidateCard({
   onSeek: (t: number) => void;
 }) {
   const { segments, roi, rangeScore } = result;
+  const isWhite = segments.some(s => s.verdict !== 'unlit' && s.color === '白');
   const start = segments.length ? segments[0].startTime : 0;
   const total = segments.length ? segments[segments.length - 1].endTime - start : 1;
   const playheadPct = total > 0 ? Math.min(100, Math.max(0, ((currentTime - start) / total) * 100)) : 0;
@@ -113,6 +114,11 @@ function CandidateCard({
           </span>
         ))}
       </p>
+      {isWhite && (
+        <p className="text-xs text-slate-500">
+          ※ 白判定は枠が白飛び部分のみを覆っている可能性があります。枠をレンズ全体より少し大きめにしてください
+        </p>
+      )}
     </div>
   );
 }
