@@ -6,7 +6,7 @@
 // lights up/dims/changes color at any point during the clip will have a high range even without
 // a clean "baseline" shot, while constant bright backgrounds (factory ceiling lights etc.) stay
 // low-range and are correctly ignored.
-import { analyzeCanvasRegion, verdictFromLum } from './colorAnalysis';
+import { analyzeCanvasRegion, verdictFromLum, rgbToHsv } from './colorAnalysis';
 import type { ROI, Verdict, LampColor, FullAnalysis, MethodResult } from './colorAnalysis';
 
 export interface SampledFrames {
@@ -434,37 +434,124 @@ function baselineLum(lums: number[]): number {
 const MEAN_MAX_PERCENTILE = 0.90;
 // Minimum meanLum spread (max-base) within the clip before we trust relative scaling at all.
 // Below this the lamp essentially doesn't vary in this clip (or only ever shows one state) and
-// treating tiny fluctuations as meaningful weak/strong swings would just amplify noise.
+// treating tiny fluctuations as meaningful weak/strong swings would just amplify noise. Also
+// reused below as the floor for the per-ROI bimodal split's minimum cluster separation.
 const MEAN_RANGE_FLOOR = 15;
-// ── intensity stability: median smoothing + hysteresis ─────────────────
+// ── intensity: per-ROI bimodal (Otsu-style) split, not fixed thresholds ─
 //
-// A real user's factory clip (14s, red/orange lamp with a genuine weak→strong→weak sequence)
-// exposed two problems with the original single-pass "two hard cut-points" classifier
-// (REL_WEAK_MAX=0.55 / REL_STRONG_MIN=0.60 — a near-zero-width "normal" band): the strong plateau
-// was interrupted by 0.2-0.3s slivers reading 弱/中 wherever the per-frame rel value's ordinary
-// frame-to-frame noise happened to dip across the boundary, e.g. 2.2-4.1s 橙強 → 4.1-4.3s 橙中 →
-// 4.3-11.5s 橙強. Two mechanisms fix this without touching the lit/unlit gate or per-ROI color
-// logic (both verified-good):
+// A real user tested 86a708f's fixed REL_ENTER_*/REL_LEAVE_* thresholds on their own 14s clip and
+// found two failures that trace to the same root cause: a single global threshold pair can't
+// survive how much a lamp's measured rel value depends on THIS ROI's box size/tightness and how
+// much of the adjacent lamp's bloom it happens to include.
 //
-// 1. Median-of-3 smoothing over each lit RUN's own chronological rel series (window shrinks to 2
-//    at a run's first/last frame; never smooths across an unlit gap, which would smear two
-//    distinct on-cycles together) — a single-frame dip/spike mid-plateau can no longer flip the
-//    label on its own, since it gets outvoted by its two neighbors.
-// 2. Hysteresis instead of two hard cut-points: the classifier tracks a running state (strong/
-//    normal/weak) per lit run and requires crossing a wider ENTER threshold to newly declare
-//    strong/weak, but only a nearer LEAVE threshold to fall back out of it — so noise that
-//    oscillates near a single cut-point can no longer repeatedly flip the label back and forth.
+//   位置1 (amber, box enlarged past the lens per our own earlier advice): this lamp is at full
+//   brightness for its ENTIRE single lit run — there's no dim phase anywhere in the clip — so
+//   there is only one physical state to observe, correctly landing in the "doesn't vary enough to
+//   split" case (see isBimodalSplitValid below) → lit-normal. (This ROI's white-color complaint is
+//   a separate, color-side bug — see the illumination-delta fallback further down.)
+//   位置2 (red lamp, box loose + contaminated by the amber lamp's bloom on one edge): the user's
+//   own weak tail (~12.0-14.1s) sat ABOVE fixed REL_LEAVE_STRONG=0.55 with this box's rel scaling,
+//   so hysteresis correctly-per-its-own-logic never let it leave "strong" — the fixed cut points
+//   were simply wrong for this box's particular rel range. A box drawn slightly differently shifts
+//   the whole rel curve, but the two clusters (this lamp's own weak state vs. its own strong
+//   state) are still there in the DATA; a fixed threshold just can't find them for every box.
 //
-// Tuned against the real user clip's measured meanLum-based rel values (see PR/commit body for
-// the full per-frame dump): the red lamp's genuine weak phase (~1.9-5.0s window per the user's
-// own result) sits at rel ~0.42-0.52, its genuine strong phase (~4.3-11.5s) sits at rel
-// ~0.65-1.47, and its dimmer trailing tail (~12.0-14.1s) sits back down in the weak band. The
-// amber lamp (single steady-on state) sits at rel ~0.62-1.06 throughout, safely inside the
-// "stay strong" hysteresis zone once entered.
-const REL_ENTER_STRONG = 0.65; // must reach this to newly become strong from normal/weak
-const REL_LEAVE_STRONG = 0.55; // must fall below this to leave strong (else stays strong)
-const REL_ENTER_WEAK = 0.45;   // must drop to this to newly become weak from normal/strong
-const REL_LEAVE_WEAK = 0.52;   // must rise above this to leave weak (else stays weak)
+// Fix: instead of comparing each frame's meanLum to fixed universal cut points, find the split
+// INSIDE this ROI's own observed lit-frame meanLum values — a 1D two-cluster (Otsu-style) scan,
+// see computeBimodalSplit — then classify each frame relative to THAT ROI's own two clusters.
+// This is robust to box size/bloom because it never assumes what "weak" or "strong" numerically
+// look like in advance; it just asks "did this ROI, in this clip, show two distinguishable
+// brightness states, and if so, where's the boundary between them?" It also matches the physical
+// system better than the old strong/normal/weak trichotomy: with 2 lamps × (tail/brake or
+// off/full), each individual lamp genuinely only ever has 2 lit states (weak/strong) plus off —
+// "normal" was never a real third state, just what the old classifier called "couldn't
+// confidently call it either weak or strong" (which is now the unimodal fallback below, honestly
+// reported as 中 rather than invented as a third physical level).
+//
+// Median-of-3 smoothing (medianSmoothRun, unchanged from 86a708f, applied to meanLum directly
+// instead of the old normalized rel) still runs first, per lit RUN, so a single dip/spike frame
+// can't flip the split classification on its own — outvoted by its two neighbors before the split
+// boundary is even computed.
+const BIMODAL_SEPARATION_FACTOR = 0.25; // split must separate clusters by > this × (p90-p10 spread)
+const BIMODAL_BAND_HALF_FRACTION = 0.10; // hysteresis half-band, as a fraction of (muHi - muLo)
+
+interface BimodalSplit {
+  threshold: number;
+  muLo: number;
+  muHi: number;
+}
+
+// 1D two-cluster (Otsu-style) split: scan every boundary between consecutive sorted values and
+// keep the one maximizing between-cluster variance (equivalently minimizing within-cluster
+// variance) — the classic Otsu binarization threshold, applied to meanLum values instead of an
+// 8-bit pixel histogram. No library needed: with the modest sample counts here (tens of lit
+// frames per ROI) an O(n log n) sort + O(n) scan is instant. Returns null if there aren't even 2
+// distinct values to split (nothing to separate).
+function computeBimodalSplit(vals: number[]): BimodalSplit | null {
+  if (vals.length < 2) return null;
+  const sorted = [...vals].sort((a, b) => a - b);
+  const n = sorted.length;
+  const total = sorted.reduce((s, v) => s + v, 0);
+  let sumLo = 0;
+  let best: BimodalSplit | null = null;
+  let bestBetweenVar = -Infinity;
+  for (let i = 1; i < n; i++) {
+    sumLo += sorted[i - 1];
+    // Splitting between two identical values would create a degenerate zero-width cluster on one
+    // side — skip boundaries that don't actually separate distinct meanLum values.
+    if (sorted[i] === sorted[i - 1]) continue;
+    const nLo = i, nHi = n - i;
+    const muLo = sumLo / nLo;
+    const muHi = (total - sumLo) / nHi;
+    const wLo = nLo / n, wHi = nHi / n;
+    const betweenVar = wLo * wHi * (muHi - muLo) * (muHi - muLo);
+    if (betweenVar > bestBetweenVar) {
+      bestBetweenVar = betweenVar;
+      best = { threshold: (sorted[i - 1] + sorted[i]) / 2, muLo, muHi };
+    }
+  }
+  return best;
+}
+
+function percentileOf(vals: number[], p: number): number {
+  if (vals.length === 0) return 0;
+  const sorted = [...vals].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * p));
+  return sorted[idx];
+}
+
+// The split is only trusted as a real bimodal (weak/strong) signal if the two cluster means are
+// meaningfully separated — otherwise a single steady-on lamp's ordinary frame-to-frame jitter
+// (auto-exposure hunting, compression noise) would get carved into fake "weak"/"strong" halves
+// right down the middle of one real physical state. Floor is the greater of the absolute
+// MEAN_RANGE_FLOOR (this ROI barely varies at all) and a fraction of this ROI's own lit-frame
+// spread (p90-p10) — so a large, genuinely-noisy ROI needs proportionally more separation than a
+// small, clean one before we believe it found two real states.
+function isBimodalSplitValid(split: BimodalSplit, litVals: number[]): boolean {
+  const spread = percentileOf(litVals, 0.9) - percentileOf(litVals, 0.1);
+  return (split.muHi - split.muLo) > Math.max(MEAN_RANGE_FLOOR, BIMODAL_SEPARATION_FACTOR * spread);
+}
+
+// Classify each (already median-smoothed) lit-frame meanLum value against a validated bimodal
+// split, with a hysteresis band straddling the boundary: a value inside the band keeps the
+// previous frame's state instead of being re-decided from scratch, so noise that happens to
+// hover right at the split point can't flip the label back and forth every frame. The very first
+// lit frame (no previous state yet) falls back to nearest-cluster-mean.
+function classifyBimodal(vals: number[], split: BimodalSplit): IntensityState[] {
+  const half = BIMODAL_BAND_HALF_FRACTION * (split.muHi - split.muLo);
+  const lo = split.threshold - half;
+  const hi = split.threshold + half;
+  let prev: IntensityState | undefined;
+  return vals.map((v) => {
+    let state: IntensityState;
+    if (v < lo) state = 'weak';
+    else if (v > hi) state = 'strong';
+    else if (prev) state = prev;
+    else state = Math.abs(v - split.muLo) <= Math.abs(v - split.muHi) ? 'weak' : 'strong';
+    prev = state;
+    return state;
+  });
+}
 
 function robustMax(lums: number[]): number {
   if (lums.length === 0) return 0;
@@ -555,16 +642,97 @@ function average(nums: number[]): number {
   return nums.length === 0 ? 0 : nums.reduce((s, n) => s + n, 0) / nums.length;
 }
 
+// ── illumination-delta color fallback ───────────────────────────────────
+//
+// Real user footage (位置1, the amber lamp): the box was enlarged past the lens per our own
+// earlier advice, yet still read 白 for its entire clip. Root cause is different from the earlier
+// clipping problems this file already works around — this lamp is at FULL brightness for its one
+// and only lit run, so decideRoiColor's dimmest-run strategy has nothing but a fully-clipped run
+// to look at, and even that run's per-frame hue votes all clip to white. There is no dim/weak
+// phase anywhere in the clip to recover the true hue from directly.
+//
+// But the light a lamp casts doesn't stop at the lens: it blooms/haloes onto the surrounding
+// housing, plastic wrap, and body panels inside the box, and THAT bloom carries the lamp's real
+// hue even while the lens core itself is blown out to white. Video mode also knows what the same
+// box looked like UNLIT (any ROI with at least one unlit frame), so it can isolate that bloom by
+// subtracting the box's own unlit-baseline color from its lit-frame color — the delta is
+// (approximately) just the cast light, with the room's ambient/background color canceled out.
+//
+// This is deliberately a FALLBACK, not a replacement: the existing dimmest-run chromatic-majority
+// vote directly samples real, unclipped lamp-color pixels whenever any exist, which is strictly
+// more reliable than a bloom inference — so it stays the primary path (see decideRoiColor) and
+// this only runs when that path found no chromatic hue anywhere in the clip.
+const DELTA_MIN_SATURATION = 22; // % — below this the delta reads as colorless (white/undetermined)
+const DELTA_MIN_LUM = 12; // luminance-equivalent floor below which the delta is too faint to trust
+
+// Per-channel 10th-percentile baseline (same robust-floor idea as baselineLum: resists one
+// anomalous unlit frame — motion blur, a stray reflection — from skewing the baseline) over a
+// ROI's UNLIT frames. Returns null if the ROI has no unlit frames at all — with no baseline to
+// diff against, the fallback can't run and 白 is left standing as originally decided.
+function computeBaselineRGB(unlitFrames: { r: number; g: number; b: number }[]): { r: number; g: number; b: number } | null {
+  if (unlitFrames.length === 0) return null;
+  const pct = (vals: number[]) => {
+    const sorted = [...vals].sort((a, b) => a - b);
+    const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * BASELINE_PERCENTILE));
+    return sorted[idx];
+  };
+  return {
+    r: pct(unlitFrames.map(f => f.r)),
+    g: pct(unlitFrames.map(f => f.g)),
+    b: pct(unlitFrames.map(f => f.b)),
+  };
+}
+
+// Average, over every lit frame, how much brighter each channel got vs. this ROI's own unlit
+// baseline (clamped to 0 — a frame reading below baseline in some channel contributes no delta
+// there rather than a spurious negative). Averaging over the whole lit population — rather than
+// per-run like decideRoiColor's primary path — is intentional here: this fallback only runs when
+// NO lit frame anywhere recovered a chromatic hue directly, so there's no "dimmest run" signal
+// left to prefer; every lit frame's cast is equally (in)direct evidence of the same underlying hue.
+function averageDeltaRGB(
+  baseline: { r: number; g: number; b: number },
+  litFrames: { r: number; g: number; b: number }[],
+): { r: number; g: number; b: number } {
+  const deltas = litFrames.map(f => ({
+    r: Math.max(0, f.r - baseline.r),
+    g: Math.max(0, f.g - baseline.g),
+    b: Math.max(0, f.b - baseline.b),
+  }));
+  return { r: average(deltas.map(d => d.r)), g: average(deltas.map(d => d.g)), b: average(deltas.map(d => d.b)) };
+}
+
+// Classify the hue of an illumination delta (not a raw pixel color) — hue bins deliberately
+// mirror predictHSV's (colorAnalysis.ts) so a bloom-inferred color and a directly-sampled color
+// agree on where 赤/橙/黄 boundaries fall. Saturation/magnitude thresholds are looser than
+// predictHSV's (which reads real, undiluted lamp pixels): a bloom delta is a diluted, indirect
+// signal by nature, so demanding predictHSV's full S>35 would reject genuine amber/red bloom.
+// Below either floor the delta is genuinely too faint/colorless to call — e.g. a real white
+// (reverse) lamp's bloom is itself colorless, so it correctly stays undetermined here and 白
+// stands as the final answer.
+function classifyIlluminationDelta(deltaR: number, deltaG: number, deltaB: number): LampColor | null {
+  const deltaLum = deltaR * 0.299 + deltaG * 0.587 + deltaB * 0.114;
+  if (deltaLum < DELTA_MIN_LUM) return null;
+  const { h, s } = rgbToHsv(deltaR, deltaG, deltaB);
+  if (s < DELTA_MIN_SATURATION) return null;
+  if (h < 15 || h > 345) return '赤';
+  if (h <= 45) return '橙';
+  if (h <= 65) return '黄';
+  return null;
+}
+
 // Decide the single color for a ROI from its lit runs (each a contiguous stretch of lit frames —
 // see the comment above for why we group by run rather than pooling every lit frame in the clip).
+// deltaFallback is invoked only when no lit frame anywhere has a chromatic vote (see
+// classifyIlluminationDelta above); it's a closure rather than plain data because computing it
+// needs the ROI's unlit frames too, which this function otherwise has no reason to receive.
 // Returns null only if the ROI has no lit frames anywhere.
-function decideRoiColor(litRunsChrono: ColorVoteFrame[][]): LampColor | null {
+function decideRoiColor(litRunsChrono: ColorVoteFrame[][], deltaFallback: () => LampColor | null): LampColor | null {
   const runs = litRunsChrono.map(dedupeStaleFrames).filter(r => r.length > 0);
   if (runs.length === 0) return null;
   const allFrames = runs.flat();
-  // If literally no lit frame ever recovered a chromatic hue, this is a genuinely white lamp
-  // (e.g. a reverse light) rather than a clipping artifact — 白 for the whole ROI.
-  if (!allFrames.some(f => isChromatic(f.color))) return '白';
+  // If literally no lit frame ever recovered a chromatic hue directly, try the illumination-delta
+  // fallback (bloom onto the surroundings) before conceding 白 — see comment block above.
+  if (!allFrames.some(f => isChromatic(f.color))) return deltaFallback() ?? '白';
 
   let dimmestRun = runs[0];
   let dimmestAvg = average(dimmestRun.map(f => f.meanLum));
@@ -590,41 +758,19 @@ function medianOf3ish(vals: number[]): number {
   return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-// Median-smooth a lit run's own chronological rel series with a 3-wide window (shrinking to 2 at
-// the run's edges). Never called across an unlit gap — see REL_* comments above.
-function medianSmoothRun(rels: number[]): number[] {
-  return rels.map((_, i) => {
+// Median-smooth a lit run's own chronological meanLum series with a 3-wide window (shrinking to 2
+// at the run's edges). Never called across an unlit gap — a single dip/spike frame mid-plateau
+// can no longer pull the bimodal split or a frame's classification off course on its own, since
+// it gets outvoted by its two neighbors before either even sees it.
+function medianSmoothRun(vals: number[]): number[] {
+  return vals.map((_, i) => {
     const lo = Math.max(0, i - 1);
-    const hi = Math.min(rels.length - 1, i + 1);
-    return medianOf3ish(rels.slice(lo, hi + 1));
+    const hi = Math.min(vals.length - 1, i + 1);
+    return medianOf3ish(vals.slice(lo, hi + 1));
   });
 }
 
 type IntensityState = 'strong' | 'normal' | 'weak';
-
-// Hysteresis state machine over one lit run's smoothed rel series — see REL_ENTER_*/REL_LEAVE_*
-// comments above for the mechanism and tuned values. The first frame has no prior state to hold
-// onto, so it's classified with the (wider) ENTER thresholds directly.
-function hysteresisStates(rels: number[]): IntensityState[] {
-  const states: IntensityState[] = [];
-  let state: IntensityState = 'normal';
-  rels.forEach((rel, i) => {
-    if (i === 0) {
-      if (rel >= REL_ENTER_STRONG) state = 'strong';
-      else if (rel <= REL_ENTER_WEAK) state = 'weak';
-      else state = 'normal';
-    } else if (state === 'strong') {
-      if (rel < REL_LEAVE_STRONG) state = rel <= REL_ENTER_WEAK ? 'weak' : 'normal';
-    } else if (state === 'weak') {
-      if (rel > REL_LEAVE_WEAK) state = rel >= REL_ENTER_STRONG ? 'strong' : 'normal';
-    } else {
-      if (rel >= REL_ENTER_STRONG) state = 'strong';
-      else if (rel <= REL_ENTER_WEAK) state = 'weak';
-    }
-    states.push(state);
-  });
-  return states;
-}
 
 function intensityStateToVerdict(state: IntensityState): Verdict {
   if (state === 'strong') return 'lit-strong';
@@ -703,47 +849,73 @@ function buildSeries(frames: HTMLCanvasElement[], timestamps: number[], roi: ROI
   const meanRange = meanMax - meanBase;
 
   // Pass 2a: per-frame lit/unlit GATE (unchanged — verified accurate for on/off transitions to
-  // ~0.2s) plus the raw ingredients (meanLum, rel, hue vote) intensity/color need downstream.
+  // ~0.2s) plus the raw ingredients (meanLum, hue vote, full-ROI mean RGB for the illumination-
+  // delta color fallback) intensity/color need downstream.
   const base = raw.map((r, i) => {
     if (!r) {
-      return { timestamp: timestamps[i], lit: false, meanLum: 0, rel: 0, color: null as LampColor | null, r: 0, g: 0, b: 0 };
+      return {
+        timestamp: timestamps[i], lit: false, meanLum: 0, color: null as LampColor | null,
+        r: 0, g: 0, b: 0, meanR: 0, meanG: 0, meanB: 0,
+      };
     }
     const gate = verdictFromLum(r.stats.topLum, baseline + BASELINE_LIT_DELTA);
     const lit = gate !== 'unlit';
-    const rel = meanRange > 0 ? (r.stats.meanLum - meanBase) / meanRange : 0;
     return {
       timestamp: timestamps[i],
       lit,
       meanLum: r.stats.meanLum,
-      rel,
       color: colorVote(r.predictions),
       r: r.stats.rgb.r,
       g: r.stats.rgb.g,
       b: r.stats.rgb.b,
+      meanR: r.stats.meanR,
+      meanG: r.stats.meanG,
+      meanB: r.stats.meanB,
     };
   });
 
-  // Pass 2b: intensity verdict from the baseline-normalized meanLum signal (area-based,
-  // clipping-robust — see MEAN_RANGE_FLOOR/REL_* comments above, instead of topLum's absolute
-  // steps which collapsed weak/strong into the same bucket once topLum itself saturated).
-  // Computed per lit RUN (contiguous stretch of `lit` frames) so median smoothing never smears
-  // across an unlit gap and hysteresis state resets cleanly for each new on-cycle.
+  // Pass 2b: intensity verdict from a per-ROI bimodal (Otsu-style) split of this lit meanLum
+  // population (area-based, clipping-robust — see MEAN_RANGE_FLOOR/BIMODAL_* comments above,
+  // instead of topLum's absolute steps which collapsed weak/strong into the same bucket once
+  // topLum itself saturated, or a fixed global rel threshold which can't survive box-size/bloom
+  // variation between different users' boxes). Median smoothing is still computed per lit RUN
+  // (contiguous stretch of `lit` frames) so it never smears across an unlit gap, but the split
+  // itself and the hysteresis band are evaluated over ALL of this ROI's lit frames pooled
+  // together — the two clusters are a property of the LAMP across its whole clip, not of any one
+  // on-cycle.
   const intensity: Verdict[] = base.map(() => 'unlit');
   if (meanRange >= MEAN_RANGE_FLOOR) {
+    const smoothedMeanLum = new Array<number>(base.length).fill(0);
     let i = 0;
     while (i < base.length) {
       if (!base[i].lit) { i++; continue; }
       let j = i;
       while (j < base.length && base[j].lit) j++;
-      const runRel = base.slice(i, j).map(f => f.rel);
-      const smoothed = medianSmoothRun(runRel);
-      const states = hysteresisStates(smoothed);
-      states.forEach((state, k) => { intensity[i + k] = intensityStateToVerdict(state); });
+      const runLum = base.slice(i, j).map(f => f.meanLum);
+      const smoothed = medianSmoothRun(runLum);
+      smoothed.forEach((v, k) => { smoothedMeanLum[i + k] = v; });
       i = j;
     }
+
+    const litIdx: number[] = [];
+    base.forEach((f, idx) => { if (f.lit) litIdx.push(idx); });
+    const litSmoothedVals = litIdx.map(idx => smoothedMeanLum[idx]);
+    const split = computeBimodalSplit(litSmoothedVals);
+
+    if (split && isBimodalSplitValid(split, litSmoothedVals)) {
+      // Bimodal: this ROI showed two distinguishable lit states in this clip — classify each lit
+      // frame relative to THIS ROI's own two clusters, no "normal" bucket (see comment above).
+      const states = classifyBimodal(litSmoothedVals, split);
+      litIdx.forEach((idx, k) => { intensity[idx] = intensityStateToVerdict(states[k]); });
+    } else {
+      // Unimodal: the lamp only ever showed one brightness state in this clip (e.g. a single
+      // steady-on run with no weak phase) — honestly reported as 中 rather than invented as a
+      // fake weak/strong split of pure noise.
+      litIdx.forEach(idx => { intensity[idx] = 'lit-normal'; });
+    }
   } else {
-    // Lamp doesn't meaningfully vary in this clip (or only ever shows one state) — relative
-    // scaling would just be noise amplification, so treat every lit frame as normal.
+    // Lamp doesn't meaningfully vary in this clip at all — relative scaling would just be noise
+    // amplification, so treat every lit frame as normal.
     base.forEach((f, i) => { if (f.lit) intensity[i] = 'lit-normal'; });
   }
 
@@ -756,21 +928,38 @@ function buildSeries(frames: HTMLCanvasElement[], timestamps: number[], roi: ROI
     r: f.r,
     g: f.g,
     b: f.b,
+    meanR: f.meanR,
+    meanG: f.meanG,
+    meanB: f.meanB,
   }));
 
-  // Pass 3: one color for the whole ROI, from its dimmest lit run (see decideRoiColor).
+  // Pass 3: one color for the whole ROI, from its dimmest lit run (see decideRoiColor), with an
+  // illumination-delta fallback (see comment block above) for when that primary path finds no
+  // chromatic hue anywhere. The fallback needs the ROI's unlit frames' full-region mean color as
+  // a baseline plus every lit frame's full-region mean color to diff against it — gathered here,
+  // not inside decideRoiColor, since decideRoiColor otherwise only ever sees LIT frames.
   const litRuns: ColorVoteFrame[][] = [];
   let currentRun: ColorVoteFrame[] = [];
+  const unlitMeanRGB: { r: number; g: number; b: number }[] = [];
+  const litMeanRGB: { r: number; g: number; b: number }[] = [];
   for (const f of perFrame) {
     if (f.lit) {
       currentRun.push({ meanLum: f.meanLum, color: f.color, r: f.r, g: f.g, b: f.b });
-    } else if (currentRun.length > 0) {
-      litRuns.push(currentRun);
-      currentRun = [];
+      litMeanRGB.push({ r: f.meanR, g: f.meanG, b: f.meanB });
+    } else {
+      if (currentRun.length > 0) { litRuns.push(currentRun); currentRun = []; }
+      unlitMeanRGB.push({ r: f.meanR, g: f.meanG, b: f.meanB });
     }
   }
   if (currentRun.length > 0) litRuns.push(currentRun);
-  const roiColor = decideRoiColor(litRuns);
+
+  const deltaFallback = (): LampColor | null => {
+    const baselineRGB = computeBaselineRGB(unlitMeanRGB);
+    if (!baselineRGB || litMeanRGB.length === 0) return null;
+    const delta = averageDeltaRGB(baselineRGB, litMeanRGB);
+    return classifyIlluminationDelta(delta.r, delta.g, delta.b);
+  };
+  const roiColor = decideRoiColor(litRuns, deltaFallback);
 
   return perFrame.map((f): FrameSample => ({
     timestamp: f.timestamp,

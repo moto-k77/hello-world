@@ -24,6 +24,16 @@ export interface RawColorStats {
   // buildSeries). Additive field — existing photo-mode consumers only read the fields they
   // already used and are unaffected.
   meanLum: number;
+  // Per-channel mean over EVERY pixel of the ROI (companion to meanLum, same "whole region, not
+  // just the bright band" idea but keeping color instead of collapsing to luminance). Lets video
+  // mode compare a lit ROI's overall cast against its own UNLIT baseline cast — see videoAnalysis
+  // .ts's illumination-delta color fallback: even a lamp whose LENS clips to pure white still
+  // tints the housing/plastic around it with its true hue (bloom), and that tint shows up as a
+  // shift in the whole-region mean color even when the top-brightness band is fully saturated.
+  // Additive fields — existing photo-mode consumers are unaffected.
+  meanR: number;
+  meanG: number;
+  meanB: number;
   pixelCount: number;
 }
 
@@ -42,7 +52,10 @@ export interface FullAnalysis {
   predictions: MethodResult[];
 }
 
-function rgbToHsv(r: number, g: number, b: number): { h: number; s: number; v: number } {
+// Exported so videoAnalysis.ts can classify the hue of an illumination DELTA (lit ROI mean minus
+// its own unlit baseline mean), not just a raw pixel color — see the illumination-delta color
+// fallback in buildSeries/decideRoiColor.
+export function rgbToHsv(r: number, g: number, b: number): { h: number; s: number; v: number } {
   const rn = r / 255, gn = g / 255, bn = b / 255;
   const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
   const d = max - min;
@@ -67,13 +80,18 @@ function rgbToYcbcr(r: number, g: number, b: number): { y: number; cb: number; c
 function extractTopPixels(pixels: Uint8ClampedArray) {
   const entries: { lum: number; r: number; g: number; b: number }[] = [];
   let meanLumSum = 0;
+  let meanRSum = 0, meanGSum = 0, meanBSum = 0;
   for (let i = 0; i < pixels.length; i += 4) {
     const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
     const lum = r * 0.299 + g * 0.587 + b * 0.114;
     entries.push({ lum, r, g, b });
     meanLumSum += lum;
+    meanRSum += r; meanGSum += g; meanBSum += b;
   }
   const meanLum = entries.length > 0 ? meanLumSum / entries.length : 0;
+  const meanR = entries.length > 0 ? meanRSum / entries.length : 0;
+  const meanG = entries.length > 0 ? meanGSum / entries.length : 0;
+  const meanB = entries.length > 0 ? meanBSum / entries.length : 0;
   entries.sort((a, b) => b.lum - a.lum);
   const topN = Math.max(1, Math.floor(entries.length * 0.1));
   const top = entries.slice(0, topN);
@@ -108,7 +126,12 @@ function extractTopPixels(pixels: Uint8ClampedArray) {
   // classification (see videoAnalysis.ts) a usable signal even when peakLum itself is saturated
   // in both the lit and unlit states.
   const topLum = top.reduce((s, p) => s + p.lum, 0) / top.length;
-  return { r: avgR, g: avgG, b: avgB, peakLum: entries[0].lum, topLum, meanLum, pixelCount: entries.length };
+  return {
+    r: avgR, g: avgG, b: avgB,
+    peakLum: entries[0].lum, topLum, meanLum,
+    meanR, meanG, meanB,
+    pixelCount: entries.length,
+  };
 }
 
 export function verdictFromLum(lum: number, thresh: number): Verdict {
@@ -191,7 +214,7 @@ export function analyzeCanvasRegion(canvas: HTMLCanvasElement, roi: ROI): FullAn
 
   const ctx = canvas.getContext('2d')!;
   const { data } = ctx.getImageData(x, y, w, h);
-  const { r, g, b, peakLum, topLum, meanLum, pixelCount } = extractTopPixels(data);
+  const { r, g, b, peakLum, topLum, meanLum, meanR, meanG, meanB, pixelCount } = extractTopPixels(data);
 
   const stats: RawColorStats = {
     rgb: { r, g, b },
@@ -200,6 +223,9 @@ export function analyzeCanvasRegion(canvas: HTMLCanvasElement, roi: ROI): FullAn
     peakLum,
     topLum,
     meanLum,
+    meanR,
+    meanG,
+    meanB,
     pixelCount,
   };
 
