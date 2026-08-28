@@ -9,6 +9,7 @@ import { AccuracyReport } from './components/AccuracyReport';
 import { VideoUpload } from './components/VideoUpload';
 import { VideoResult } from './components/VideoResult';
 import { VideoRoiEditor } from './components/VideoRoiEditor';
+import { LiveCapture } from './components/LiveCapture';
 import { analyzeROI } from './api/colorAnalysis';
 import type { ROI, FullAnalysis } from './api/colorAnalysis';
 import { detectDiffRegions } from './api/diffDetection';
@@ -30,7 +31,8 @@ type Phase =
   | 'videoUpload'
   | 'videoProcessing'
   | 'videoResult'
-  | 'videoRoiEdit';
+  | 'videoRoiEdit'
+  | 'liveCapture';
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('select');
@@ -50,6 +52,10 @@ export default function App() {
   // can be garbage collected once a session ends.
   const [sampledFrames, setSampledFrames] = useState<SampledFrames | null>(null);
   const [editorInitialRois, setEditorInitialRois] = useState<ROI[]>([]);
+  // Which entry point produced the current video/live result, so "撮り直す" returns to the same
+  // one (file picker vs. camera) instead of always dropping back to the upload screen.
+  const [captureMode, setCaptureMode] = useState<'upload' | 'live'>('upload');
+  const [liveCapNotice, setLiveCapNotice] = useState<string | null>(null);
 
   useEffect(() => {
     loadAllEntries().then(setEntries).catch(console.error);
@@ -133,9 +139,11 @@ export default function App() {
   };
 
   const handleVideoSelected = async (file: File) => {
+    setCaptureMode('upload');
     setVideoError(null);
     setVideoResult(null);
     setSampledFrames(null);
+    setLiveCapNotice(null);
     setVideoObjectUrl(URL.createObjectURL(file));
     setPhase('videoProcessing');
     try {
@@ -154,7 +162,31 @@ export default function App() {
     setVideoResult(null);
     setVideoError(null);
     setSampledFrames(null);
-    setPhase('videoUpload');
+    setLiveCapNotice(null);
+    setPhase(captureMode === 'live' ? 'liveCapture' : 'videoUpload');
+  };
+
+  const handleEnterLiveCapture = () => {
+    setCaptureMode('live');
+    setVideoError(null);
+    setVideoResult(null);
+    setSampledFrames(null);
+    setVideoObjectUrl(null);
+    setLiveCapNotice(null);
+    setPhase('liveCapture');
+  };
+
+  // Live capture places ROIs manually and classifies the retained in-memory frames directly (no
+  // auto-detection, no video file) — see classifyRoisAsResult in videoAnalysis.ts. There is no
+  // video file to play back, so videoObjectUrl stays null and VideoResult falls back to its static
+  // reference-frame <img>, which still shows the boxes + timelines correctly.
+  const handleLiveCaptureComplete = (result: VideoAnalysisResult, capNotice?: string) => {
+    setVideoResult(result);
+    setSampledFrames(result.sampled);
+    setVideoError(null);
+    setVideoObjectUrl(null);
+    setLiveCapNotice(capNotice ?? null);
+    setPhase('videoResult');
   };
 
   const handleEditRois = (rois: ROI[]) => {
@@ -294,13 +326,24 @@ export default function App() {
       );
     }
     return (
-      <VideoResult
-        result={videoResult}
-        videoUrl={videoObjectUrl}
-        onRetake={handleVideoRetake}
-        onEditRois={handleEditRois}
-      />
+      <div className="flex flex-col">
+        {liveCapNotice && (
+          <div className="bg-yellow-900/40 border-b border-yellow-700 text-yellow-200 text-xs p-3 text-center">
+            {liveCapNotice}
+          </div>
+        )}
+        <VideoResult
+          result={videoResult}
+          videoUrl={videoObjectUrl}
+          onRetake={handleVideoRetake}
+          onEditRois={handleEditRois}
+        />
+      </div>
     );
+  }
+
+  if (phase === 'liveCapture') {
+    return <LiveCapture onComplete={handleLiveCaptureComplete} onCancel={() => setPhase('select')} />;
   }
 
   if (phase === 'videoRoiEdit' && videoResult) {
@@ -359,12 +402,22 @@ export default function App() {
       </button>
 
       <button
-        onClick={() => setPhase('videoUpload')}
+        onClick={() => { setCaptureMode('upload'); setPhase('videoUpload'); }}
         className="mb-4 flex items-center justify-between rounded-2xl p-3 border bg-slate-800 border-slate-700 hover:border-purple-600 transition-colors text-left"
       >
         <div>
           <p className="text-white text-sm font-semibold">🎥 動画検査モード（検証）</p>
           <p className="text-slate-400 text-xs mt-0.5">動画をアップロードし、複数の点灯位置と強弱の時間変化を自動検出します</p>
+        </div>
+      </button>
+
+      <button
+        onClick={handleEnterLiveCapture}
+        className="mb-4 flex items-center justify-between rounded-2xl p-3 border bg-slate-800 border-slate-700 hover:border-purple-600 transition-colors text-left"
+      >
+        <div>
+          <p className="text-white text-sm font-semibold">📹 カメラ撮影で検査（試験）</p>
+          <p className="text-slate-400 text-xs mt-0.5">カメラをランプに向けて枠を配置し、その場で録画・解析します</p>
         </div>
       </button>
 

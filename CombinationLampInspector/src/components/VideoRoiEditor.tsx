@@ -21,7 +21,10 @@ interface DragState {
   startRoi: ROI;
 }
 
-function defaultCenteredRoi(width: number, height: number): ROI {
+// Exported so LiveCapture.tsx's aim-phase box editor (manual ROI placement before recording) uses
+// the exact same default-box and clamping geometry as this editor, rather than a second copy that
+// could silently drift out of sync.
+export function defaultCenteredRoi(width: number, height: number): ROI {
   const size = Math.min(width, height) * 0.2;
   return {
     x: (width - size) / 2,
@@ -33,7 +36,7 @@ function defaultCenteredRoi(width: number, height: number): ROI {
 
 // Clamp a ROI to the frame bounds, enforcing a minimum size so a drag-to-resize can't collapse a
 // box to nothing (and so it stays a usable ROI for classification).
-function clampRoi(roi: ROI, width: number, height: number): ROI {
+export function clampRoi(roi: ROI, width: number, height: number): ROI {
   const minSize = Math.min(width, height) * 0.04;
   let w = Math.max(minSize, Math.min(roi.width, width));
   let h = Math.max(minSize, Math.min(roi.height, height));

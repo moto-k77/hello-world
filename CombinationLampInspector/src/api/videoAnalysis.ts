@@ -60,7 +60,11 @@ export interface VideoAnalysisResult {
 // ── frame sampling ──────────────────────────────────────────
 
 const MAX_FRAMES = 60;
-const WORK_WIDTH = 480;
+// Exported so LiveCapture.tsx can draw its own live-sampled frames at the exact same working
+// resolution sampleFramesFromVideo uses — the analysis (buildSeries/classifyRois) has no idea
+// whether a SampledFrames came from seeking a file or from a live getUserMedia stream, so the two
+// paths must produce numerically-comparable canvases.
+export const WORK_WIDTH = 480;
 
 function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
   return new Promise((resolve) => {
@@ -968,6 +972,50 @@ function buildSeries(frames: HTMLCanvasElement[], timestamps: number[], roi: ROI
   }));
 }
 
+// ── live provisional-only classifier (LiveCapture.tsx) ──────────────────────────────────────
+//
+// buildSeries's authoritative pipeline is retrospective in a way that actively breaks on a live
+// recording's growing buffer, not just "less confident": baselineLum takes a FIXED 10th-percentile
+// of ALL accumulated frames as the unlit floor, which is a safe robust-floor assumption for a full
+// staged clip (operator deliberately shows off then on) but silently assumes at least ~10% of what
+// it's given is unlit. During live recording the lamp is often already on and stays on — measured
+// against this project's own sample clip fed through a live-shaped growing buffer: once the
+// accumulated off-fraction drifted below ~10%, the percentile floor rose into the lit population's
+// own noise floor and the provisional label for a lamp that was correctly lit for the entire rest
+// of the clip got stuck reporting 消灯 (unlit) from that point on, never recovering until stop. The
+// weak/strong split and single-hue-per-ROI decision are similarly properties of the WHOLE clip's
+// lit population / dimmest run (see decideRoiColor/computeBimodalSplit) — not a meaningful question
+// to ask of a buffer that might be half a second old.
+//
+// This lighter variant sidesteps both problems instead of inheriting them: an absolute small-COUNT
+// floor (mean of the few lowest topLum values seen so far) stays anchored to the true off level as
+// soon as even a couple of off frames exist, rather than needing 10% of the population to be off —
+// and it only ever reports coarse lit/unlit + the CURRENT frame's own hue vote, never a fabricated
+// weak/strong verdict or a whole-ROI color decision from data too sparse to support one. It is
+// NEVER used for the authoritative result — classifyRoisAsResult (run once, on stop) always re-runs
+// the real buildSeries over the complete retained buffer, so accuracy after stop is unaffected.
+export function provisionalRoiState(
+  frames: HTMLCanvasElement[],
+  roi: ROI,
+): { verdict: Verdict; color: LampColor | null } | null {
+  if (frames.length === 0) return null;
+  const raw = frames.map((c): FullAnalysis | null => {
+    try { return analyzeCanvasRegion(c, roi); } catch { return null; }
+  });
+  const validRaw = raw.filter((r): r is FullAnalysis => r !== null);
+  if (validRaw.length === 0) return null;
+
+  const sortedTopLum = validRaw.map(r => r.stats.topLum).sort((a, b) => a - b);
+  const floorCount = Math.min(3, sortedTopLum.length);
+  const floor = average(sortedTopLum.slice(0, floorCount));
+
+  const last = raw[raw.length - 1];
+  if (!last) return null;
+  const gate = verdictFromLum(last.stats.topLum, floor + BASELINE_LIT_DELTA);
+  if (gate === 'unlit') return { verdict: 'unlit', color: null };
+  return { verdict: 'lit-normal', color: colorVote(last.predictions) };
+}
+
 function collapseSegments(series: FrameSample[], duration: number): LampSegment[] {
   if (series.length === 0) return [];
   const segments: LampSegment[] = [];
@@ -1004,6 +1052,21 @@ export function classifyRois(sampled: SampledFrames, rois: ROI[]): VideoCandidat
     const segments = collapseSegments(series, duration);
     return { roi, series, segments };
   });
+}
+
+// Package manually-placed ROIs (LiveCapture's on-stop path) into a full VideoAnalysisResult, the
+// same shape analyzeVideoFile produces — used where there is no auto-detection step at all (the
+// user placed every box before recording), only classifyRois's authoritative pass over the frames
+// accumulated live. Mirrors analyzeVideoFile's own reference-frame convention (middle of the
+// buffer) so VideoResult's static-image fallback (no video file exists in live-capture mode) shows
+// a representative frame rather than the first or last.
+export function classifyRoisAsResult(sampled: SampledFrames, rois: ROI[]): VideoAnalysisResult {
+  const { frames, width, height, duration } = sampled;
+  if (frames.length === 0) throw new Error('録画されたフレームがありません');
+  const candidates = classifyRois(sampled, rois);
+  const refIndex = Math.floor(frames.length / 2);
+  const referenceFrameDataUrl = frames[refIndex].toDataURL('image/jpeg', 0.9);
+  return { referenceFrameDataUrl, width, height, duration, candidates, sampled };
 }
 
 // ── top-level orchestrator ──
